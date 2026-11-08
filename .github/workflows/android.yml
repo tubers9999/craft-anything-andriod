@@ -60,8 +60,16 @@ jobs:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          CARGO_APK_RELEASE_KEYSTORE: ${{ github.workspace }}/apps/craft-anything-android/release.keystore
+          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: craftanything
           RUST_BACKTRACE: 1
         run: |
+          if [ ! -f apps/craft-anything-android/release.keystore ]; then
+            keytool -genkeypair -v -keystore apps/craft-anything-android/release.keystore \
+              -alias craftanything -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass craftanything -keypass craftanything \
+              -dname "CN=CraftAnything, OU=RedGlitchX, O=RedGlitchX, L=Unknown, ST=Unknown, C=US"
+          fi
           cargo apk build --release -p craft-anything-android
           mkdir -p dist
           find target -name "*.apk" -exec cp {} dist/craft-anything-andriod.apk \;
