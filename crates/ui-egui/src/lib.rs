@@ -1118,7 +1118,7 @@ impl CraftApp {
             Ok(Done::Picked { pick, path: handle.map(|h| h.path().to_path_buf()) })
         });
         #[cfg(target_os = "android")]
-        self.toast(tr("File picker is not available on Android: enter paths directly in the input box."));
+        self.toast(tr("File picker is not available on Android: enter paths directly in the input box."), false);
     }
 
     /// The overview tool used for a "first look" and for answering without an AI.
