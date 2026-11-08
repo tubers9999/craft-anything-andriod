@@ -21,7 +21,7 @@ egui = { workspace = true }
 # SVG icons (Lucide) rasterised at the exact on-screen size with resvg (pure Rust).
 egui_extras = { workspace = true, features = ["svg"] }
 # `links`: without it `ctx.open_url` is a silent no-op (the workspace turns eframe's defaults off).
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "links"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "links"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
@@ -34,6 +34,8 @@ arboard = { workspace = true }
 pollster = "0.4"
 # Safe, small OS-language lookup; MIT OR Apache-2.0, no native runtime dependency.
 sys-locale = "0.3.2"
+# OS accessibility APIs (only available on desktop or with GameActivity on Android).
+eframe = { workspace = true, features = ["accesskit"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 pollster = "0.4"

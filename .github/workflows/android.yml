@@ -76,20 +76,24 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          name: Craft Anything Android ${{ github.ref_name }}
+          tag_name: v0.4.0-android
+          name: "Craft Anything Android v0.4.0 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## Craft Anything Android Release (${{ github.ref_name }})
-            
-            Android APK build for Craft Anything.
-            
-            ### Download
-            - [craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/craft-anything-andriod.apk)
+            ## 📱 Craft Anything Android APK (v0.4.0)
+
+            Official automated Android release build.
+
+            - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
+            - **Target Architecture:** `aarch64-linux-android` (ARM64)
+            - **Min Android SDK:** Android 8.0+ (API 26)
+
+            ### ⬇️ Download APK
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.0-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
