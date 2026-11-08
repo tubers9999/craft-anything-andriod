@@ -57,8 +57,10 @@ jobs:
 
       - name: Build Android APK
         env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          RUST_BACKTRACE: 1
         run: |
           cargo apk build --release -p craft-anything-android
           mkdir -p dist

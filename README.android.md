@@ -1,6 +1,7 @@
 # Craft Anything for Android (`craft-anything-andriod`)
 
-This repository adds Android APK packaging and automated CI/CD builds for **Craft Anything** using Rust, `eframe` (egui), `android-activity` (`GameActivity`), and `cargo-apk`.
+> **Copyright (c) 2026 RedGlitchX ([@tubers9999](https://github.com/tubers9999)). All rights reserved.**  
+> Android port and automated APK continuous integration pipeline for Craft Anything.
 
 ---
 

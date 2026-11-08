@@ -1,6 +1,7 @@
 [package]
 name = "craft-anything-android"
-description = "Craft Anything Android APK runner"
+description = "Craft Anything Android APK runner by RedGlitchX"
+authors = ["RedGlitchX <tubers9999@users.noreply.github.com>"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,23 +17,28 @@ craft-anything-platform = { workspace = true }
 craft-anything-ai = { workspace = true }
 craft-anything-setup = { workspace = true }
 craft-anything-ui-egui = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-game-activity", "persistence"] }
-winit = { version = "0.30", features = ["android-game-activity"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-native-activity", "persistence"] }
+winit = { version = "0.30", features = ["android-native-activity"] }
 log = { workspace = true }
 android_logger = "0.14"
 
 [package.metadata.android]
 package = "ai.storyteller.craftanything"
-apk_label = "Craft Anything"
-version_code = 1
-version_name = "0.4.0"
-target_sdk_version = 34
-min_sdk_version = 26
 build_targets = ["aarch64-linux-android"]
-icon = "res/mipmap-xxxhdpi/ic_launcher.png"
-manifest_override = "AndroidManifest.xml"
+resources = "res"
+assets = "assets"
+
+[package.metadata.android.sdk]
+min_sdk_version = 26
+target_sdk_version = 34
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.ACCESS_NETWORK_STATE"
 
 [package.metadata.android.application]
 label = "Craft Anything"
-has_code = true
 icon = "@mipmap/ic_launcher"
+has_code = false

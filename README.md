@@ -14,6 +14,12 @@
 <h1 align="center">Craft Anything</h1>
 
 <p align="center">
+  <b>Android Edition &amp; APK Packaging by <a href="https://github.com/tubers9999">RedGlitchX</a></b><br>
+  <img alt="Android Support" src="https://img.shields.io/badge/Android-APK%20Native-brightgreen?style=flat-square&logo=android">
+  <img alt="Copyright RedGlitchX" src="https://img.shields.io/badge/Copyright-RedGlitchX-blue?style=flat-square">
+</p>
+
+<p align="center">
   <b>English</b> · <a href="README.ja.md">日本語</a> · <a href="README.zh.md">简体中文</a> · <a href="README.zh-hant.md">繁體中文</a> · <a href="README.ko.md">한국어</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.vi.md">Tiếng Việt</a> · <a href="README.pt.md">Português</a>
 </p>
 

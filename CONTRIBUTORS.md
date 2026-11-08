@@ -3,6 +3,13 @@
 Craft Anything is built by the people below and everyone in the repository's history. Anyone
 whose pull request is merged is a contributor.
 
+## Android Port & Packaging
+
+**RedGlitchX** ([@tubers9999](https://github.com/tubers9999)):
+- Designed and authored the Android port of Craft Anything (`craft-anything-andriod`).
+- Created native activity lifecycle runner, mobile UI adapters, and automated GitHub Actions APK CI/CD pipeline.
+- Maintained local Termux and PRoot CLI installation and build tooling.
+
 ## Before the public history (2026-10-12 to 2026-10-30)
 
 Craft Anything was first developed in a private repository. The public history starts with a
