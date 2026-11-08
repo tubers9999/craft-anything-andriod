@@ -1,0 +1,38 @@
+[package]
+name = "craft-anything-android"
+description = "Craft Anything Android APK runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "craft_anything_android"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+craft-anything-engine = { workspace = true }
+craft-anything-platform = { workspace = true }
+craft-anything-ai = { workspace = true }
+craft-anything-setup = { workspace = true }
+craft-anything-ui-egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-game-activity", "persistence"] }
+winit = { version = "0.30", features = ["android-game-activity"] }
+log = { workspace = true }
+android_logger = "0.14"
+
+[package.metadata.android]
+package = "ai.storyteller.craftanything"
+apk_label = "Craft Anything"
+version_code = 1
+version_name = "0.4.0"
+target_sdk_version = 34
+min_sdk_version = 26
+build_targets = ["aarch64-linux-android"]
+icon = "res/mipmap-xxxhdpi/ic_launcher.png"
+manifest_override = "AndroidManifest.xml"
+
+[package.metadata.android.application]
+label = "Craft Anything"
+has_code = true
+icon = "@mipmap/ic_launcher"

@@ -26,13 +26,17 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 # Native open/save dialogs, always shown from a worker thread (never blocks a frame).
 rfd = { workspace = true }
 # Pictures pasted from the clipboard (see `paste`).
 arboard = { workspace = true }
 pollster = "0.4"
 # Safe, small OS-language lookup; MIT OR Apache-2.0, no native runtime dependency.
+sys-locale = "0.3.2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+pollster = "0.4"
 sys-locale = "0.3.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]

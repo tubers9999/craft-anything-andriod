@@ -86,7 +86,7 @@ pub fn picture_wanted(ctx: &egui::Context) -> bool {
 /// A copied picture a message can't take (over 20 MB, or not a picture inside whatever its name
 /// says) refuses the paste, rather than showing as attached and being left out when the message
 /// goes, or sent as a file the builder can't read. Blocking: run it on a worker.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 pub fn read_pictures(dir: &Path, keep: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
     let mut clipboard = arboard::Clipboard::new().map_err(|e| format!("{} {e}", crate::i18n::tr("The clipboard can't be read:")))?;
     let files: Vec<PathBuf> = clipboard.get().file_list().unwrap_or_default().into_iter().filter(|p| craft_anything_engine::workspace::is_picture(p)).collect();
@@ -98,6 +98,12 @@ pub fn read_pictures(dir: &Path, keep: &[PathBuf]) -> Result<Vec<PathBuf>, Strin
         return Err(crate::i18n::tr("The picture on the clipboard is too large."));
     };
     craft_anything_engine::workspace::save_pasted_picture(dir, width, height, image.bytes.into_owned(), keep).map(|p| vec![p]).map_err(|e| e.message)
+}
+
+/// Fallback for Android where arboard is not available.
+#[cfg(target_os = "android")]
+pub fn read_pictures(_dir: &Path, _keep: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    Ok(Vec::new())
 }
 
 /// Copied picture files, if a message can take every one; else which one it can't.
@@ -116,7 +122,7 @@ fn attachable(files: Vec<PathBuf>) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "android")))]
 mod tests {
     use super::*;
     use egui_kittest::kittest::Queryable as _;
