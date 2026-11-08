@@ -10,9 +10,9 @@ use std::sync::Arc;
 #[cfg(target_os = "android")]
 use winit::platform::android::activity::AndroidApp;
 
-/// Android Activity entry point invoked by android-activity / GameActivity.
+/// Android Activity entry point invoked by android-activity / NativeActivity.
 #[cfg(target_os = "android")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     android_logger::init_once(
         android_logger::Config::default()
@@ -26,7 +26,10 @@ fn android_main(app: AndroidApp) {
     if let Some(path) = app.internal_data_path() {
         let _ = std::fs::create_dir_all(&path);
         let _ = std::env::set_current_dir(&path);
-        std::env::set_var("HOME", &path);
+        // SAFETY: Only set HOME at startup before background threads spawn.
+        unsafe {
+            std::env::set_var("HOME", &path);
+        }
         log::info!("Configured app data directory: {}", path.display());
     }
 
