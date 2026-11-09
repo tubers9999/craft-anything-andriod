@@ -254,7 +254,7 @@ fn mobile_web_site_open(ctx: &mut Ctx<'_>, url: &str, p: &OpenParams, _dl: &Dead
         .new_agent();
 
     let resp = agent.get(url).call().map_err(|e| {
-        ToolError::new(ErrorCode::Network, format!("Couldn't reach {url}: {e}"))
+        ToolError::new(ErrorCode::ProgramFailed, format!("Couldn't reach {url}: {e}"))
             .with_remediation("Check your internet connection and verify the website address.")
     })?;
 
