@@ -152,30 +152,39 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
         let x = bar.left() + bar.width() * f.clamp(0.0, 1.0);
         ui.painter().line_segment([egui::pos2(bar.left(), bar.bottom() - s), egui::pos2(x, bar.bottom() - s)], egui::Stroke::new(2.0 * s, t.accent));
     }
+    let is_mobile = cfg!(target_os = "android") || ui.available_width() < 550.0;
     ui.horizontal_centered(|ui| {
-        ui.spacing_mut().item_spacing.x = 10.0 * s;
+        ui.spacing_mut().item_spacing.x = if is_mobile { 6.0 * s } else { 10.0 * s };
         // Room for macOS's buttons, kept in full screen too: they slide back in when the pointer
         // reaches the top of the screen, and land there instead of over the app mark.
-        ui.add_space(if cfg!(target_os = "macos") { NATIVE_BUTTONS_WIDTH } else { 12.0 } * s);
+        ui.add_space(if cfg!(target_os = "macos") { NATIVE_BUTTONS_WIDTH } else if is_mobile { 4.0 } else { 12.0 } * s);
         if ui.add(crate::app_icon(22.0 * s).sense(egui::Sense::click())).on_hover_text(tr("Home")).clicked() {
             app.state.screen = Screen::Home;
         }
-        ui.label(theme::label_text("Craft Anything", label(12.0, s)).color(t.text).strong());
+        if !is_mobile {
+            ui.label(theme::label_text("Craft Anything", label(12.0, s)).color(t.text).strong());
+        }
         let in_project = app.state.screen == Screen::Project;
         let project = if in_project { app.workspace.as_ref().map(|w| w.manifest.name.clone()) } else { app.view.project.clone() };
         let target = if in_project { None } else { app.view.active_target().map(|t| (t.name.clone(), t.kind)) };
-        if project.is_some() || target.is_some() {
+        if !is_mobile && (project.is_some() || target.is_some()) {
             rule(ui);
         }
         if let Some(p) = project {
-            ui.label(theme::label_text(&p, label(12.0, s)).color(t.text_dim));
-            if target.is_some() {
+            let max_w = if is_mobile { 110.0 * s } else { 260.0 * s };
+            ui.add_sized(
+                Vec2::new(max_w, 20.0 * s),
+                egui::Label::new(theme::label_text(&p, label(12.0, s)).color(t.text_dim)).truncate(),
+            ).on_hover_text(&p);
+            if target.is_some() && !is_mobile {
                 ui.label(RichText::new("/").color(t.text_faint));
             }
         }
         if let Some((name, kind)) = target {
-            icons::show(ui, crate::kind_icon(kind), 14.0 * s, t.icon);
-            ui.add(egui::Label::new(RichText::new(name).font(theme::mono(theme::CAPTION * s)).color(t.text)).truncate()).on_hover_text(tr(kind.plain()));
+            if !is_mobile {
+                icons::show(ui, crate::kind_icon(kind), 14.0 * s, t.icon);
+                ui.add(egui::Label::new(RichText::new(name).font(theme::mono(theme::CAPTION * s)).color(t.text)).truncate()).on_hover_text(tr(kind.plain()));
+            }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
@@ -192,9 +201,9 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
                 }
                 rule(ui);
             }
-            ui.spacing_mut().item_spacing.x = 10.0 * s;
+            ui.spacing_mut().item_spacing.x = if is_mobile { 6.0 * s } else { 10.0 * s };
             // Without window buttons on the right, keep the controls off the window's rounded corner.
-            ui.add_space(if NATIVE_FRAME { 12.0 } else { 4.0 } * s);
+            ui.add_space(if NATIVE_FRAME { if is_mobile { 6.0 } else { 12.0 } } else { 4.0 } * s);
             if let Some((title, fraction, message)) = download {
                 if download_pill(ui, &title, fraction).on_hover_text(message).clicked() {
                     app.state.modal = Some(match app.engine_flow.job {
@@ -206,6 +215,19 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
             }
             // During first run there is nothing to switch or set yet.
             if !app.settings.first_run_done {
+                return;
+            }
+            // On mobile, keep title bar compact: Settings button, Clean room switch, spinner
+            if is_mobile {
+                if icons::button(ui, "settings", CONTROL * s, app.state.settings_open, "Settings").clicked() {
+                    app.state.settings_open = !app.state.settings_open;
+                }
+                deep_toggle(app, ui);
+                if app.jobs.busy() {
+                    let n = app.jobs.running().filter(|j| j.visible).count();
+                    ui.add(crate::widgets::Spinner::new().size(14.0 * s).color(t.accent))
+                        .on_hover_text(crate::i18n::trf("{n} job(s) running", &[("n", &n.to_string())]));
+                }
                 return;
             }
             // Simple mode keeps the bar to the essentials: Settings is in the sidebar, the mode

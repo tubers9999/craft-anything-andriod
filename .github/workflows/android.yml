@@ -121,21 +121,20 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.4-android
-          name: "Craft Anything Android v0.4.4 (RedGlitchX Edition)"
+          tag_name: v0.4.5-android
+          name: "Craft Anything Android v0.4.5 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.4)
+            ## 📱 Craft Anything Android APK (v0.4.5)
 
             Official automated Android release build by **RedGlitchX**.
 
-            ### 🚀 What's New in v0.4.4:
-            - **Portrait/Vertical Screen Support**: Redesigned Settings modal, modals, and Game Files mode with responsive layouts and top horizontal tabs so no screen rotation is required.
-            - **Clipboard & Direct Paste Buttons**: Added one-tap paste buttons next to Server Address endpoints, API Keys (OpenAI, Anthropic, Gemini, Groq, OpenRouter), Fal.ai keys, Website URLs, and the main Prompt input box.
-            - **Fallback Paste Dialog**: Included in-app modal paste input for Android environments where background clipboard access is restricted.
-            - **Game Mode Desktop Parity**: Polished Game Files and "Build with" engine choices for both wide/landscape and vertical/portrait screens.
+            ### 🚀 What's New in v0.4.5:
+            - **XML Tool Call Parser for Local & Custom Models**: Fully parses `<tool_call>`, `<function=...>`, `<function name="...">`, and `<parameter name="...">` XML tags emitted by models like Hermes, Qwen, DeepSeek, and Mythox AI. Strips raw XML dump from chat and seamlessly routes tool execution (`build_file_write`, etc.).
+            - **Intelligent Tool Alias Resolution**: Automatically maps short/informal model tool calls (`write`, `file_write`, `list`, `read`, `edit`, `command`, `bash`) to their corresponding Craft Anything build tools (`build_file_write`, etc.).
+            - **Portrait Mobile Title Bar Overlap Fix**: Completely resolved text collisions and button overlap on portrait mobile screens by hiding redundant "Craft Anything" text, truncating long project names, and streamlining right-side controls.
 
             - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **Original Project:** ArtCraft Team & Craft Anything contributors
@@ -145,14 +144,12 @@ jobs:
             - **Signatures:** v1 (JAR) + v2 (APK Signature v2) + v3 (APK Signature v3)
             - **Alignment:** 4-byte page aligned (zipalign)
 
-            ### ✨ New in v0.4.3:
-            - **Embedded Mobile Web Engine:** Inspects and opens websites natively via built-in HTTP engine without needing external desktop Chromium.
-            - **Full Portrait Mobile Layout:** Responsive vertical orientation for one-handed smartphone use (no need to rotate phone to landscape).
-            - **Clean Mobile Title Bar:** Removed redundant desktop window buttons on Android (minimise, maximise, close) saving 138px of header width.
-            - **Game & Rebuild Mode Mobile Adaptation:** Game mode, target cards, and deep mode controls stack gracefully on portrait screens.
-            - **Termux & PRoot Chromium Auto-Detection:** Automatically detects Chromium in Termux and PRoot if installed.
+            ### ✨ Previous v0.4.4 Highlights:
+            - **Portrait/Vertical Screen Support**: Redesigned Settings modal, modals, and Game Files mode with responsive layouts and top horizontal tabs so no screen rotation is required.
+            - **Clipboard & Direct Paste Buttons**: Added one-tap paste buttons next to Server Address endpoints, API Keys (OpenAI, Anthropic, Gemini, Groq, OpenRouter), Fal.ai keys, Website URLs, and the main Prompt input box.
+            - **Fallback Paste Dialog**: Included in-app modal paste input for Android environments where background clipboard access is restricted.
 
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.3-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.5-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

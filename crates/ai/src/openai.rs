@@ -662,27 +662,316 @@ fn extract_json_object(s: &str) -> Option<Value> {
 
 static REACT_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Resolve a tool name against offered tools, including aliases used by local/custom models.
+fn resolve_tool(name: &str, tools: &[ToolDef]) -> Option<String> {
+    let clean = name.trim().trim_start_matches("functions.").trim_start_matches("tools.");
+    if let Some(t) = tools.iter().find(|t| t.name.eq_ignore_ascii_case(clean)) {
+        return Some(t.name.clone());
+    }
+    // Check known aliases for build tools
+    let lower = clean.to_ascii_lowercase();
+    let target = match lower.as_str() {
+        "build_file_write" | "file_write" | "write_file" | "write" | "workspace_write" | "build_write" => "build_file_write",
+        "build_file_read" | "file_read" | "read_file" | "read" | "workspace_read" | "build_read" => "build_file_read",
+        "build_file_edit" | "file_edit" | "edit_file" | "edit" | "workspace_edit" | "build_edit" => "build_file_edit",
+        "build_files_list" | "build_file_list" | "files_list" | "list_files" | "file_list" | "list" | "dir_list" => "build_files_list",
+        "build_command_run" | "command_run" | "run_command" | "bash" | "sh" | "exec" | "terminal" | "shell" => "build_command_run",
+        "build_checklist" | "checklist" | "todo_write" | "todowrite" => "build_checklist",
+        "core_person_ask" | "person_ask" | "ask_person" | "ask" => "core_person_ask",
+        _ => "",
+    };
+    if !target.is_empty() && tools.iter().any(|t| t.name == target) {
+        return Some(target.to_string());
+    }
+    None
+}
+
+/// Extract an attribute value from a tag (e.g. name="foo" or name='foo' or name=foo).
+fn extract_tag_attr(tag: &str, attr: &str) -> Option<String> {
+    let p_dq = format!("{attr}=\"");
+    let p_sq = format!("{attr}='");
+    let p_eq = format!("{attr}=");
+    if let Some(p) = tag.find(&p_dq) {
+        let rest = &tag[p + p_dq.len()..];
+        let end = rest.find('"')?;
+        return Some(rest[..end].to_string());
+    }
+    if let Some(p) = tag.find(&p_sq) {
+        let rest = &tag[p + p_sq.len()..];
+        let end = rest.find('\'')?;
+        return Some(rest[..end].to_string());
+    }
+    if let Some(p) = tag.find(&p_eq) {
+        let rest = &tag[p + p_eq.len()..];
+        let end = rest.find(|c: char| c.is_whitespace() || c == '>').unwrap_or(rest.len());
+        let val = rest[..end].trim().trim_matches('"').trim_matches('\'');
+        if !val.is_empty() {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
+/// Parse parameters inside a function tag body into a JSON Value.
+fn parse_xml_parameters(body: &str) -> Value {
+    if let Some(val) = extract_json_object(body) {
+        if val.is_object() {
+            return val;
+        }
+    }
+    let mut map = serde_json::Map::new();
+    let mut cursor = 0;
+    while cursor < body.len() {
+        let rest = &body[cursor..];
+        let tag_candidates = [
+            rest.find("<parameter"),
+            rest.find("<param"),
+            rest.find("<arg"),
+        ];
+        let earliest = tag_candidates.into_iter().flatten().min();
+        let Some(p_start) = earliest else { break };
+        let tag_slice = &rest[p_start..];
+        let Some(gt) = tag_slice.find('>') else { break };
+        let open_tag = &tag_slice[..gt];
+        let param_name = extract_tag_attr(open_tag, "name").or_else(|| extract_tag_attr(open_tag, "key")).unwrap_or_default();
+        let val_start = p_start + gt + 1;
+        let val_rest = &rest[val_start..];
+
+        let close_tag = if tag_slice.starts_with("<parameter") {
+            "</parameter>"
+        } else if tag_slice.starts_with("<param") {
+            "</param>"
+        } else {
+            "</arg>"
+        };
+
+        let (param_str, advance) = if let Some(close_pos) = val_rest.find(close_tag) {
+            (&val_rest[..close_pos], val_start + close_pos + close_tag.len())
+        } else {
+            (val_rest, rest.len())
+        };
+
+        let trimmed_val = param_str.trim();
+        let raw_val = if let Some(cdata) = trimmed_val.strip_prefix("<![CDATA[").and_then(|s| s.strip_suffix("]]>")) {
+            cdata
+        } else {
+            trimmed_val
+        };
+
+        if !param_name.is_empty() {
+            let parsed = serde_json::from_str::<Value>(raw_val)
+                .unwrap_or_else(|_| Value::String(raw_val.to_string()));
+            map.insert(param_name, parsed);
+        }
+        cursor += advance;
+    }
+    Value::Object(map)
+}
+
+/// Extract function call from JSON object inside a tool call.
+fn parse_json_call(val: &Value) -> Option<(String, Value)> {
+    let obj = val.as_object()?;
+    let name = obj.get("name")?.as_str()?.trim().to_string();
+    if name.is_empty() {
+        return None;
+    }
+    let raw_args = obj.get("arguments").or_else(|| obj.get("parameters"))?;
+    let args = match raw_args {
+        Value::String(s) => serde_json::from_str(s).unwrap_or(json!({})),
+        Value::Object(_) => raw_args.clone(),
+        _ => json!({}),
+    };
+    Some((name, args))
+}
+
+/// Parse inner XML function tags such as <function=foo> or <function name="foo">.
+fn parse_inner_xml_function(body: &str) -> Option<(String, Value)> {
+    if let Some(eq_pos) = body.find("<function=") {
+        let after = &body[eq_pos + "<function=".len()..];
+        let gt = after.find('>')?;
+        let fn_name = after[..gt].trim().trim_matches('"').trim_matches('\'').to_string();
+        let inner = &after[gt + 1..];
+        let close = inner.find("</function>").unwrap_or(inner.len());
+        let params = parse_xml_parameters(&inner[..close]);
+        return Some((fn_name, params));
+    }
+    if let Some(fn_pos) = body.find("<function") {
+        let after = &body[fn_pos..];
+        let gt = after.find('>')?;
+        let tag = &after[..gt];
+        let fn_name = extract_tag_attr(tag, "name")?;
+        let inner = &after[gt + 1..];
+        let close = inner.find("</function>").unwrap_or(inner.len());
+        let params = parse_xml_parameters(&inner[..close]);
+        return Some((fn_name, params));
+    }
+    None
+}
+
+/// Parse XML-style tool calls emitted by modern open-source models (Hermes, Qwen, DeepSeek, etc.)
+/// Returns the list of parsed tool calls and the text with XML tool blocks stripped.
+pub fn parse_xml_tool_calls(text: &str) -> (Vec<(String, Value)>, String) {
+    let mut calls = Vec::new();
+    let mut cleaned = String::new();
+    let mut cursor = 0;
+
+    while cursor < text.len() {
+        let rest = &text[cursor..];
+        let tool_call_start = rest.find("<tool_call>").or_else(|| rest.find("<tool_call "));
+        let func_eq_start = rest.find("<function=");
+        let func_name_start = rest.find("<function name=").or_else(|| rest.find("<function name='"));
+        let invoke_start = rest.find("<invoke name=").or_else(|| rest.find("<invoke name='"));
+
+        let mut candidates = Vec::new();
+        if let Some(pos) = tool_call_start { candidates.push((pos, "tool_call")); }
+        if let Some(pos) = func_eq_start { candidates.push((pos, "function_eq")); }
+        if let Some(pos) = func_name_start { candidates.push((pos, "function_name")); }
+        if let Some(pos) = invoke_start { candidates.push((pos, "invoke")); }
+
+        candidates.sort_by_key(|&(pos, _)| pos);
+
+        let Some(&(pos, kind)) = candidates.first() else {
+            cleaned.push_str(rest);
+            break;
+        };
+
+        cleaned.push_str(&rest[..pos]);
+
+        match kind {
+            "tool_call" => {
+                let open_end = rest[pos..].find('>').map(|i| pos + i + 1).unwrap_or(pos + "<tool_call>".len());
+                let after_open = &rest[open_end..];
+                if let Some(close_pos) = after_open.find("</tool_call>") {
+                    let body = after_open[..close_pos].trim();
+                    if let Some(val) = extract_json_object(body) {
+                        if let Some((name, input)) = parse_json_call(&val) {
+                            calls.push((name, input));
+                        }
+                    } else if let Some((name, input)) = parse_inner_xml_function(body) {
+                        calls.push((name, input));
+                    }
+                    cursor += open_end + close_pos + "</tool_call>".len();
+                } else {
+                    let body = after_open.trim();
+                    if let Some(val) = extract_json_object(body) {
+                        if let Some((name, input)) = parse_json_call(&val) {
+                            calls.push((name, input));
+                        }
+                    } else if let Some((name, input)) = parse_inner_xml_function(body) {
+                        calls.push((name, input));
+                    }
+                    cursor = text.len();
+                }
+            }
+            "function_eq" => {
+                let after_eq = &rest[pos + "<function=".len()..];
+                if let Some(gt) = after_eq.find('>') {
+                    let fn_name = after_eq[..gt].trim().trim_matches('"').trim_matches('\'').to_string();
+                    let body_start = pos + "<function=".len() + gt + 1;
+                    let body_rest = &rest[body_start..];
+                    if let Some(close_pos) = body_rest.find("</function>") {
+                        let body = &body_rest[..close_pos];
+                        let input = parse_xml_parameters(body);
+                        calls.push((fn_name, input));
+                        cursor += body_start + close_pos + "</function>".len();
+                    } else {
+                        let input = parse_xml_parameters(body_rest);
+                        calls.push((fn_name, input));
+                        cursor = text.len();
+                    }
+                } else {
+                    cleaned.push_str(&rest[pos..pos + 1]);
+                    cursor += pos + 1;
+                }
+            }
+            "function_name" | "invoke" => {
+                let tag_slice = &rest[pos..];
+                if let Some(gt) = tag_slice.find('>') {
+                    let open_tag = &tag_slice[..gt];
+                    let fn_name = extract_tag_attr(open_tag, "name").unwrap_or_default();
+                    let close_tag = if kind == "invoke" { "</invoke>" } else { "</function>" };
+                    let body_start = pos + gt + 1;
+                    let body_rest = &rest[body_start..];
+                    if let Some(close_pos) = body_rest.find(close_tag) {
+                        let body = &body_rest[..close_pos];
+                        let input = parse_xml_parameters(body);
+                        if !fn_name.is_empty() {
+                            calls.push((fn_name, input));
+                        }
+                        cursor += body_start + close_pos + close_tag.len();
+                    } else {
+                        let input = parse_xml_parameters(body_rest);
+                        if !fn_name.is_empty() {
+                            calls.push((fn_name, input));
+                        }
+                        cursor = text.len();
+                    }
+                } else {
+                    cleaned.push_str(&rest[pos..pos + 1]);
+                    cursor += pos + 1;
+                }
+            }
+            _ => {
+                cleaned.push_str(&rest[pos..pos + 1]);
+                cursor += pos + 1;
+            }
+        }
+    }
+
+    (calls, cleaned.trim().to_string())
+}
+
 /// Recover complete text calls as neutral tool-use blocks.
 fn react_postprocess(r: &mut TurnResult, tools: &[ToolDef], react: bool) {
     if !matches!(r.stop, StopReason::EndTurn | StopReason::ToolUse) || !r.message.tool_uses().is_empty() {
         return;
     }
     let text = r.message.text();
+
+    // 1. XML tool calls (<tool_call>, <function=...>, <invoke...>) emitted by open-source / local models
+    let (xml_calls, cleaned_text) = parse_xml_tool_calls(&text);
+    if !xml_calls.is_empty() {
+        let mut matched = Vec::new();
+        for (tool, input) in xml_calls {
+            if let Some(resolved) = resolve_tool(&tool, tools) {
+                matched.push((resolved, input));
+            }
+        }
+        if !matched.is_empty() {
+            // Strip the raw XML tool tags from text blocks so chat remains clean
+            for block in &mut r.message.blocks {
+                if let Block::Text { text } = block {
+                    *text = cleaned_text.clone();
+                }
+            }
+            r.message.blocks.retain(|b| match b {
+                Block::Text { text } => !text.is_empty(),
+                _ => true,
+            });
+            for (tool, input) in matched {
+                let n = REACT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                r.message.blocks.push(Block::ToolUse { id: format!("xml_{n}"), name: tool, input });
+            }
+            r.stop = StopReason::ToolUse;
+            return;
+        }
+    }
+
     let json_call = json_action(&text);
     let from_json = json_call.is_some();
-    // Calls after a sentence run only when every one names a tool the model was offered.
-    let offered = |tool: &str| tools.iter().any(|definition| definition.name == tool);
-    if !from_json && let Some(calls) = fenced_calls(&text).filter(|calls| calls.iter().all(|(tool, _)| offered(tool))) {
+    // Calls after a sentence run only when every one names a tool the model was offered (or alias).
+    if !from_json && let Some(calls) = fenced_calls(&text).filter(|calls| calls.iter().all(|(tool, _)| resolve_tool(tool, tools).is_some())) {
         for (tool, input) in calls {
+            let tool_name = resolve_tool(&tool, tools).unwrap_or(tool);
             let n = REACT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            r.message.blocks.push(Block::ToolUse { id: format!("react_{n}"), name: tool, input });
+            r.message.blocks.push(Block::ToolUse { id: format!("react_{n}"), name: tool_name, input });
         }
         r.stop = StopReason::ToolUse;
         return;
     }
     if !from_json
         && let Some((calls, true)) = parse_fenced_calls(&text)
-        && calls.iter().all(|(tool, _)| offered(tool))
+        && calls.iter().all(|(tool, _)| resolve_tool(tool, tools).is_some())
     {
         r.follow_up = Some("The fenced tool call in your previous response was not run because text followed the closing fence. Send the tool call again without adding a summary or other text after it.".into());
         r.stop = StopReason::PauseTurn;
@@ -690,10 +979,11 @@ fn react_postprocess(r: &mut TurnResult, tools: &[ToolDef], react: bool) {
     }
     let step = json_call.or_else(|| react.then(|| parse_react(&text)));
     if let Some(ReactStep::Action { tool, input }) = step
-        && (!from_json || tools.iter().any(|definition| definition.name == tool))
+        && (!from_json || resolve_tool(&tool, tools).is_some())
     {
+        let tool_name = resolve_tool(&tool, tools).unwrap_or(tool);
         let n = REACT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        r.message.blocks.push(Block::ToolUse { id: format!("react_{n}"), name: tool, input });
+        r.message.blocks.push(Block::ToolUse { id: format!("react_{n}"), name: tool_name, input });
         r.stop = StopReason::ToolUse;
     } else if react {
         r.stop = StopReason::EndTurn;
@@ -1196,5 +1486,47 @@ mod tests {
         assert_eq!(m.len(), 3, "system + 2 separate user messages expected: {m:?}");
         assert_eq!(m[1]["content"], "First instruction");
         assert_eq!(m[2]["content"], "Second instruction");
+    }
+
+    #[test]
+    fn parses_xml_tool_calls_qwen_hermes() {
+        let text = "I'll create the website now.\n<tool_call>\n<function=build_file_write>\n<parameter name=\"path\">app/index.html</parameter>\n<parameter name=\"content\">\n<!DOCTYPE html>\n<html>\n<head><title>Test</title></head>\n<body><h1>Hello World</h1></body>\n</html>\n</parameter>\n</function>\n</tool_call>";
+        let tool = |name: &str| ToolDef { name: name.into(), description: String::new(), schema: json!({"type": "object"}) };
+        let mut r = TurnResult {
+            message: Msg { role: Speaker::Assistant, blocks: vec![Block::Text { text: text.into() }] },
+            stop: StopReason::EndTurn,
+            usage: Usage::default(),
+            model: String::new(),
+            follow_up: None,
+        };
+        react_postprocess(&mut r, &[tool("build_file_write")], false);
+        assert_eq!(r.stop, StopReason::ToolUse);
+        let uses = r.message.tool_uses();
+        assert_eq!(uses.len(), 1);
+        let (_, name, input) = uses[0];
+        assert_eq!(name, "build_file_write");
+        assert_eq!(input.get("path").and_then(|v| v.as_str()), Some("app/index.html"));
+        assert!(input.get("content").and_then(|v| v.as_str()).unwrap().contains("<h1>Hello World</h1>"));
+        assert_eq!(r.message.text(), "I'll create the website now.");
+    }
+
+    #[test]
+    fn parses_xml_tool_call_json_and_alias() {
+        let text = "<tool_call>\n{\"name\": \"write\", \"arguments\": {\"path\": \"app/main.js\", \"content\": \"console.log('hi');\"}}\n</tool_call>";
+        let tool = |name: &str| ToolDef { name: name.into(), description: String::new(), schema: json!({"type": "object"}) };
+        let mut r = TurnResult {
+            message: Msg { role: Speaker::Assistant, blocks: vec![Block::Text { text: text.into() }] },
+            stop: StopReason::EndTurn,
+            usage: Usage::default(),
+            model: String::new(),
+            follow_up: None,
+        };
+        react_postprocess(&mut r, &[tool("build_file_write")], false);
+        assert_eq!(r.stop, StopReason::ToolUse);
+        let uses = r.message.tool_uses();
+        assert_eq!(uses.len(), 1);
+        let (_, name, input) = uses[0];
+        assert_eq!(name, "build_file_write");
+        assert_eq!(input.get("path").and_then(|v| v.as_str()), Some("app/main.js"));
     }
 }
