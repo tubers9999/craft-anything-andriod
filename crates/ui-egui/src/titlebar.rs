@@ -11,8 +11,8 @@ use craft_anything_engine::Mode;
 use egui::viewport::ResizeDirection;
 use egui::{RichText, Ui, Vec2};
 
-/// macOS draws its own window buttons, frame and resize edges (#20).
-pub const NATIVE_FRAME: bool = cfg!(target_os = "macos");
+/// macOS and Android handle their own window buttons (#20).
+pub const NATIVE_FRAME: bool = cfg!(any(target_os = "macos", target_os = "android"));
 /// Height of the custom title bar. On macOS it matches the system's title bar, so its window
 /// buttons sit centred in it.
 const HEIGHT: f32 = if NATIVE_FRAME { 32.0 } else { 40.0 };
@@ -27,7 +27,7 @@ const NATIVE_BUTTONS_WIDTH: f32 = 84.0;
 /// (Cmd − / Cmd =), like the system's window buttons beside it, so every size in it is divided by
 /// the zoom and only the rest of the window zooms. Sizes, not a scaled layer, keep text sharp.
 fn scale(ctx: &egui::Context) -> f32 {
-    if NATIVE_FRAME { 1.0 / ctx.zoom_factor() } else { 1.0 }
+    if cfg!(target_os = "macos") { 1.0 / ctx.zoom_factor() } else { 1.0 }
 }
 
 /// A size for `label_text` / `label_galley` that comes out as `size` scaled by `s`: they add a
@@ -156,7 +156,7 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
         ui.spacing_mut().item_spacing.x = 10.0 * s;
         // Room for macOS's buttons, kept in full screen too: they slide back in when the pointer
         // reaches the top of the screen, and land there instead of over the app mark.
-        ui.add_space(if NATIVE_FRAME { NATIVE_BUTTONS_WIDTH } else { 12.0 } * s);
+        ui.add_space(if cfg!(target_os = "macos") { NATIVE_BUTTONS_WIDTH } else { 12.0 } * s);
         if ui.add(crate::app_icon(22.0 * s).sense(egui::Sense::click())).on_hover_text(tr("Home")).clicked() {
             app.state.screen = Screen::Home;
         }

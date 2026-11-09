@@ -121,13 +121,13 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.2-android
-          name: "Craft Anything Android v0.4.2 (RedGlitchX Edition)"
+          tag_name: v0.4.3-android
+          name: "Craft Anything Android v0.4.3 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.2)
+            ## 📱 Craft Anything Android APK (v0.4.3)
 
             Official automated Android release build by **RedGlitchX**.
 
@@ -139,13 +139,14 @@ jobs:
             - **Signatures:** v1 (JAR) + v2 (APK Signature v2) + v3 (APK Signature v3)
             - **Alignment:** 4-byte page aligned (zipalign)
 
-            ### ✨ New in v0.4.2:
-            - **Safe Area Inset:** Fixed top status bar overlapping buttons and titlebar on Android.
-            - **Built-in File & Folder Explorer:** Full in-app file/folder browser with quick shortcuts (`/sdcard/Documents`, `/sdcard`, `/sdcard/Download`, Termux).
-            - **Storage Integration:** Default project directory set to `/sdcard/Documents/CraftAnything` (accessible by any Android file manager).
-            - **Termux & PRoot CLI Integration:** Scans and executes coding agents and tools directly from Termux and PRoot Ubuntu environments.
+            ### ✨ New in v0.4.3:
+            - **Embedded Mobile Web Engine:** Inspects and opens websites natively via built-in HTTP engine without needing external desktop Chromium.
+            - **Full Portrait Mobile Layout:** Responsive vertical orientation for one-handed smartphone use (no need to rotate phone to landscape).
+            - **Clean Mobile Title Bar:** Removed redundant desktop window buttons on Android (minimise, maximise, close) saving 138px of header width.
+            - **Game & Rebuild Mode Mobile Adaptation:** Game mode, target cards, and deep mode controls stack gracefully on portrait screens.
+            - **Termux & PRoot Chromium Auto-Detection:** Automatically detects Chromium in Termux and PRoot if installed.
 
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.2-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.3-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

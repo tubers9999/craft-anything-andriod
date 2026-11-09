@@ -29,9 +29,10 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         let full_w = ui.available_width();
-        let w = full_w.min(1000.0) - 48.0;
-        let pad = ((full_w - w) / 2.0).max(24.0);
-        ui.add_space(40.0);
+        let mobile = full_w < 500.0;
+        let pad = if mobile { 10.0 } else { ((full_w - 1000.0) / 2.0).max(24.0) };
+        let w = if mobile { full_w - pad * 2.0 } else { full_w.min(1000.0) - 48.0 };
+        ui.add_space(if mobile { 16.0 } else { 40.0 });
         ui.horizontal(|ui| {
             ui.add_space(pad);
             ui.vertical(|ui| {
@@ -80,14 +81,24 @@ fn about(app: &mut CraftApp, ui: &mut Ui, w: f32) {
     let found = &g["found"];
     let mut ask = false;
     widgets::card(&t).show(ui, |ui| {
-        ui.set_width(w - 34.0);
-        ui.horizontal(|ui| {
-            icons::show(ui, "puzzle", 20.0, t.accent_ink);
-            ui.label(theme::heading(g["engine"].as_str().unwrap_or_default(), theme::CARD));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ask = widgets::primary_icon(ui, Some("message-square"), "Ask about this game", true).clicked();
+        let card_w = if w < 450.0 { ui.available_width() } else { w - 34.0 };
+        ui.set_width(card_w);
+        if w < 450.0 {
+            ui.horizontal(|ui| {
+                icons::show(ui, "puzzle", 20.0, t.accent_ink);
+                ui.label(theme::heading(g["engine"].as_str().unwrap_or_default(), theme::CARD));
             });
-        });
+            ui.add_space(6.0);
+            ask = widgets::primary_icon(ui, Some("message-square"), "Ask about this game", true).clicked();
+        } else {
+            ui.horizontal(|ui| {
+                icons::show(ui, "puzzle", 20.0, t.accent_ink);
+                ui.label(theme::heading(g["engine"].as_str().unwrap_or_default(), theme::CARD));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ask = widgets::primary_icon(ui, Some("message-square"), "Ask about this game", true).clicked();
+                });
+            });
+        }
         if let Some(note) = found["note"].as_str() {
             ui.add_space(4.0);
             ui.label(RichText::new(note).color(t.text_dim).size(theme::BODY));

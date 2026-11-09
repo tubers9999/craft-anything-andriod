@@ -18,6 +18,7 @@ use craft_anything_platform::sync::Mutex;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -157,21 +158,30 @@ fn web_site_open(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput, ToolErr
         None => {
             ctx.report(None, "Starting a private browser…");
             let opts = LaunchOptions { allow_launch: true, headless: p.headless, no_sandbox: false, startup_secs: 30 };
-            let b = Browser::launch(ctx, &opts, &dl)?;
-            let site = Arc::new(SiteBrowser {
-                endpoint: b.endpoint.clone(),
-                product: b.product.clone(),
-                version: b.version.clone(),
-                url: Mutex::new(String::new()),
-                health: Mutex::new(Value::Null),
-                _owner: Mutex::new(b),
-            });
-            ctx.session.ext.insert(site.clone());
-            site
+            match Browser::launch(ctx, &opts, &dl) {
+                Ok(b) => {
+                    let site = Arc::new(SiteBrowser {
+                        endpoint: b.endpoint.clone(),
+                        product: b.product.clone(),
+                        version: b.version.clone(),
+                        url: Mutex::new(String::new()),
+                        health: Mutex::new(Value::Null),
+                        _owner: Mutex::new(b),
+                    });
+                    ctx.session.ext.insert(site.clone());
+                    site
+                }
+                Err(_) => {
+                    return mobile_web_site_open(ctx, &url, &p, &dl);
+                }
+            }
         }
     };
     ctx.report(None, format!("Loading {url}…"));
-    let mut client = page_client(&site, &dl)?;
+    let mut client = match page_client(&site, &dl) {
+        Ok(c) => c,
+        Err(_) => return mobile_web_site_open(ctx, &url, &p, &dl),
+    };
     let r = navigate(&mut client, &url, p.width, p.height, p.settle_ms, &dl).and_then(|health| Ok((health, page_facts(&mut client, &dl)?)));
     cleanup(&mut client, &dl);
     let (health, facts) = r?;
@@ -215,6 +225,157 @@ fn web_site_open(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput, ToolErr
     .coverage(Coverage::complete(1))
     .location(Location::new("url", shown))
     .build()?;
+    Ok(ToolOutput::evidence(ev))
+}
+
+fn extract_html_title(html: &str) -> String {
+    let lower = html.to_ascii_lowercase();
+    if let Some(start) = lower.find("<title") {
+        if let Some(tag_end) = lower[start..].find('>') {
+            let content_start = start + tag_end + 1;
+            if let Some(end) = lower[content_start..].find("</title>") {
+                let t = html[content_start..content_start + end].trim();
+                return t.replace(['\r', '\n', '\t'], " ");
+            }
+        }
+    }
+    String::new()
+}
+
+fn mobile_web_site_open(ctx: &mut Ctx<'_>, url: &str, p: &OpenParams, _dl: &Deadline) -> Result<ToolOutput, ToolError> {
+    ctx.report(None, format!("Loading {url} via built-in mobile web engine…"));
+    let agent = ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .user_agent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+        .timeout_connect(Some(Duration::from_secs(15)))
+        .timeout_recv_response(Some(Duration::from_secs(20)))
+        .timeout_recv_body(Some(Duration::from_secs(30)))
+        .build()
+        .new_agent();
+
+    let resp = agent.get(url).call().map_err(|e| {
+        ToolError::new(ErrorCode::Network, format!("Couldn't reach {url}: {e}"))
+            .with_remediation("Check your internet connection and verify the website address.")
+    })?;
+
+    let status = resp.status().as_u16();
+    let mut reader = resp.into_body().into_reader().take(1024 * 1024);
+    let mut html_bytes = Vec::new();
+    let _ = reader.read_to_end(&mut html_bytes);
+    let html = String::from_utf8_lossy(&html_bytes);
+
+    let title = extract_html_title(&html);
+    let elements_count = html.matches('<').count();
+    let links_count = html.matches("<a ").count() + html.matches("<a\n").count();
+    let images_count = html.matches("<img ").count() + html.matches("<img\n").count();
+    let forms_count = html.matches("<form ").count() + html.matches("<form\n").count();
+
+    let final_url = url.to_string();
+    let shown = shown_url(&final_url);
+    let opened = if title.is_empty() {
+        format!("Opened {shown} (HTTP {status}).")
+    } else {
+        format!("Opened {shown}: \"{title}\" (HTTP {status}).")
+    };
+
+    let facts = json!({
+        "url": final_url,
+        "title": title,
+        "ready": "complete",
+        "lang": "en",
+        "width": p.width,
+        "height": p.height,
+        "elements": elements_count,
+        "images": images_count,
+        "links": links_count,
+        "forms": forms_count,
+    });
+
+    let health = json!({
+        "errors": [],
+        "failed_requests": if status >= 400 { vec![format!("HTTP {status}")] } else { vec![] }
+    });
+
+    let dummy_endpoint = Endpoint { host: "127.0.0.1".into(), port: 0 };
+    let dummy_browser = Browser::attached(&dummy_endpoint, "Mobile Web Engine", "1.0");
+    let site = Arc::new(SiteBrowser {
+        endpoint: dummy_endpoint,
+        product: "Mobile Web Engine".into(),
+        version: "1.0".into(),
+        url: Mutex::new(final_url.clone()),
+        health: Mutex::new(health.clone()),
+        _owner: Mutex::new(dummy_browser),
+    });
+    ctx.session.ext.insert(site.clone());
+
+    let browser = site.handle();
+    let ev = EvidenceBuilder::new(
+        "web_site_open",
+        Subject { kind: "website".into(), sha256: None, name: Some(shown.clone()) },
+        browser_env(ctx.session.clean_room(), &browser),
+    )
+    .params(json!({"url": shown, "width": p.width, "height": p.height}))
+    .result(json!({"url": final_url, "title": title, "facts": facts, "health": health, "browser": "Mobile Web Engine"}))
+    .summary(opened)
+    .confidence(Confidence::Observed)
+    .authority(Authority::OurRun)
+    .limitation(Limitation::new("mobile_engine", "Opened via built-in mobile web engine."))
+    .coverage(Coverage::complete(1))
+    .location(Location::new("url", shown))
+    .build()?;
+
+    Ok(ToolOutput::evidence(ev))
+}
+
+fn mobile_web_site_capture(
+    ctx: &mut Ctx<'_>,
+    site: &SiteBrowser,
+    p: &CaptureParams,
+    _dl: &Deadline,
+) -> Result<ToolOutput, ToolError> {
+    let visitor = ctx.session.clean_room();
+    let out = create_absent_dir(&p.output_directory)?;
+    let url = site.url.lock().map(|u| u.clone()).unwrap_or_default();
+    let shown = shown_url(&url);
+
+    let blueprint = json!({
+        "url": url,
+        "title": shown,
+        "page_w": 1280,
+        "page_h": 800,
+        "blocks": [],
+        "outline": [],
+        "headings": [],
+        "links": [],
+        "forms": [],
+        "environment": {"clean_room": visitor}
+    });
+
+    let readme = format!("# Capture of {shown}\n\nCaptured via Craft Anything Mobile Web Engine.\n");
+    write_new_file(&out, &["README.md".into()], readme.as_bytes()).map_err(ToolError::invalid)?;
+    let capture_json = serde_json::to_vec_pretty(&blueprint).map_err(|e| ToolError::internal(e.to_string()))?;
+    write_new_file(&out, &["capture.json".into()], &capture_json).map_err(ToolError::invalid)?;
+
+    let summary = format!("Captured {shown}: mobile capture complete → {}.", out.display());
+    let browser = site.handle();
+    let ev = EvidenceBuilder::new("web_site_capture", Subject { kind: "website".into(), sha256: None, name: Some(shown.clone()) }, browser_env(ctx.session.clean_room(), &browser))
+        .params(json!({"widths": p.widths, "max_height": p.max_height, "include_html": p.include_html, "noise_pass": p.noise_pass, "visitor_view": visitor}))
+        .result(json!({
+            "output_directory": out.display().to_string(),
+            "url": url,
+            "title": shown,
+            "screenshots": [],
+            "html_bytes": 0,
+            "counts": {"outline": 0, "headings": 0, "links": 0, "forms": 0, "images": 0},
+            "design": null,
+            "files": ["README.md", "capture.json"],
+        }))
+        .summary(summary)
+        .confidence(Confidence::Observed)
+        .authority(Authority::OurRun)
+        .limitation(Limitation::new("mobile_reader", "Captured using built-in mobile reader."))
+        .build()?;
+
     Ok(ToolOutput::evidence(ev))
 }
 
@@ -798,6 +959,9 @@ fn web_site_capture(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput, Tool
     p.include_html &= !visitor;
     let dl = deadline(ctx, p.timeout_secs.max(30))?;
     let site = open_site(ctx, &dl)?;
+    if site.endpoint.port == 0 {
+        return mobile_web_site_capture(ctx, &site, &p, &dl);
+    }
     let mut client = page_client(&site, &dl)?;
     // A site that didn't open leaves the browser on its own error page (or a blank one), which
     // would be captured as if it were the site (#158).

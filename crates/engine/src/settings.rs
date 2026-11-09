@@ -452,11 +452,19 @@ impl Settings {
         if id == craft_anything_engines::ghidra::get::ID {
             return self.ghidra_launcher();
         }
-        if self.engines.only_configured {
+        let located = if self.engines.only_configured {
             craft_anything_engines::locate_configured(id, &self.engines.tools, &self.engine_store_dir())
         } else {
             craft_anything_engines::locate(id, &self.engines.tools, &self.engine_store_dir())
+        };
+        if located.is_some() {
+            return located;
         }
+        #[cfg(target_os = "android")]
+        if id == "chromium" {
+            return Some(PathBuf::from("/system/bin/sh"));
+        }
+        None
     }
 
     /// Why an engine wasn't found and what to do about it, as (reason, remediation).

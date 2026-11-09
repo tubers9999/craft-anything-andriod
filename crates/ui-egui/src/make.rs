@@ -82,7 +82,13 @@ pub fn hero(app: &mut CraftApp, ui: &mut Ui, w: f32) {
     let t = Tokens::get(ui.ctx());
     let d = &mut app.state.make;
     let door = if d.look { 2 } else { usize::from(d.mine) };
-    if let Some(i) = widgets::segmented_sized(ui, &["Make my own version", "Work on my project", "Just look inside"], door, 38.0, 12.5) {
+    let mobile = ui.available_width() < 450.0;
+    let labels = if mobile {
+        &["Make version", "My project", "Look inside"][..]
+    } else {
+        &["Make my own version", "Work on my project", "Just look inside"][..]
+    };
+    if let Some(i) = widgets::segmented_sized(ui, labels, door, 38.0, if mobile { 11.5 } else { 12.5 }) {
         let left = d.mine && i != 1;
         (d.mine, d.look) = (i == 1, i == 2);
         if d.mine {
@@ -108,8 +114,9 @@ pub fn hero(app: &mut CraftApp, ui: &mut Ui, w: f32) {
     ui.add_space(6.0);
     ui.label(RichText::new(tr("Choose what to recreate, say what you want, then press Start.")).size(theme::LEAD).color(t.text_dim));
     ui.add_space(16.0);
-    widgets::card(&t).inner_margin(Margin::same(20)).show(ui, |ui| {
-        ui.set_width(w - 50.0);
+    widgets::card(&t).inner_margin(Margin::same(if w < 450.0 { 12 } else { 20 })).show(ui, |ui| {
+        let card_w = if w < 450.0 { ui.available_width() } else { w - 50.0 };
+        ui.set_width(card_w);
         step_title(ui, 1, "What do you want to recreate?");
         ui.add_space(12.0);
         choose_target(app, ui);
@@ -166,8 +173,9 @@ fn mine(app: &mut CraftApp, ui: &mut Ui, w: f32) {
     ui.add_space(6.0);
     ui.label(RichText::new(tr("Pick its folder, say what you want, then press Start.")).size(theme::LEAD).color(t.text_dim));
     ui.add_space(16.0);
-    widgets::card(&t).inner_margin(Margin::same(20)).show(ui, |ui| {
-        ui.set_width(w - 50.0);
+    widgets::card(&t).inner_margin(Margin::same(if w < 450.0 { 12 } else { 20 })).show(ui, |ui| {
+        let card_w = if w < 450.0 { ui.available_width() } else { w - 50.0 };
+        ui.set_width(card_w);
         step_title(ui, 1, "Where is your project?");
         ui.add_space(12.0);
         // A folder picked on Make for another use isn't this project's.
@@ -273,8 +281,9 @@ fn look(app: &mut CraftApp, ui: &mut Ui, w: f32) {
     ui.add_space(6.0);
     ui.label(RichText::new(tr("We only read it; nothing runs. Every answer shows how sure we are.")).size(theme::LEAD).color(t.text_dim));
     ui.add_space(22.0);
-    widgets::card(&t).inner_margin(Margin::same(24)).show(ui, |ui| {
-        ui.set_width(w - 50.0);
+    widgets::card(&t).inner_margin(Margin::same(if w < 450.0 { 12 } else { 24 })).show(ui, |ui| {
+        let card_w = if w < 450.0 { ui.available_width() } else { w - 50.0 };
+        ui.set_width(card_w);
         // Each of these reads the original, which Clean room never does.
         if !app.settings.deep_mode {
             crate::engine_ui::deep_needed(app, ui);
@@ -318,9 +327,9 @@ fn choose_target(app: &mut CraftApp, ui: &mut Ui) {
     let website = local.is_none() && (d.editing_url || !d.url.is_empty());
     let scratch = local.is_none() && !website;
     let gap = 10.0;
-    let cols = if ui.available_width() > 760.0 { 4 } else { 2 };
+    let cols = if ui.available_width() > 760.0 { 4 } else if ui.available_width() > 450.0 { 2 } else { 1 };
     let tile_w = ((ui.available_width() - gap * (cols as f32 - 1.0)) / cols as f32).floor();
-    let size = Vec2::new(tile_w, 60.0);
+    let size = Vec2::new(tile_w, if cols == 1 { 50.0 } else { 60.0 });
     let mut pick = None;
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = Vec2::splat(gap);
@@ -406,19 +415,31 @@ fn look_inside(app: &mut CraftApp, ui: &mut Ui) {
     ui.add_space(6.0);
     let deep = app.settings.deep_mode;
     let gap = 10.0;
-    let size = Vec2::new(((ui.available_width() - gap) / 2.0).floor(), 72.0);
+    let single_col = ui.available_width() < 450.0;
+    let tile_w = if single_col { ui.available_width() } else { ((ui.available_width() - gap) / 2.0).floor() };
+    let size = Vec2::new(tile_w, if single_col { 66.0 } else { 72.0 });
     let mut pick = None;
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = gap;
+    let mut draw_tiles = |ui: &mut Ui, pick: &mut Option<bool>| {
         for (on, icon, label, blurb) in [
             (false, "shield-check", "Clean room", "Nothing inside it is read; Craft Anything works from what you can see. Your version gets its own art."),
             (true, "microscope", "Deep", "Craft Anything reads its code and files with every tool it has. For your private use."),
         ] {
             if widgets::choice_tile(ui, size, icon, label, blurb, deep == on).clicked() {
-                pick = Some(on);
+                *pick = Some(on);
             }
         }
-    });
+    };
+    if single_col {
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = gap;
+            draw_tiles(ui, &mut pick);
+        });
+    } else {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            draw_tiles(ui, &mut pick);
+        });
+    }
     if let Some(on) = pick {
         app.set_deep(on);
     }

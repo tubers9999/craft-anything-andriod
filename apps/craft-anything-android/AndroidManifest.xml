@@ -20,6 +20,7 @@
         <activity
             android:name="android.app.NativeActivity"
             android:label="Craft Anything"
+            android:screenOrientation="fullUser"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|navigation"
             android:exported="true">
             <meta-data

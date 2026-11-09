@@ -51,10 +51,10 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
     // Keep the content width stable while the scrollbar animates in and out.
     let full_w = (ui.available_width() - ui.spacing().scroll.allocated_width()).max(0.0);
     egui::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded).auto_shrink([false, false]).show(ui, |ui| {
-        let w = full_w.min(1000.0) - 48.0;
-        let pad = ((full_w - w) / 2.0).max(24.0);
-        // Tight enough that Start is in view at 900 px with every choice showing (tested).
-        ui.add_space(24.0);
+        let mobile = full_w < 500.0;
+        let pad = if mobile { 10.0 } else { ((full_w - 1000.0) / 2.0).max(24.0) };
+        let w = if mobile { full_w - pad * 2.0 } else { full_w.min(1000.0) - 48.0 };
+        ui.add_space(if mobile { 12.0 } else { 24.0 });
         ui.horizontal(|ui| {
             ui.add_space(pad);
             ui.vertical(|ui| {
@@ -78,7 +78,8 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
     let resp = egui::Modal::new(egui::Id::new("craft-modal"))
         .frame(egui::Frame::new().fill(t.card).corner_radius(t.r_lg()).inner_margin(Margin::same(24)).stroke(egui::Stroke::new(1.0, t.card_border)))
         .show(ctx, |ui| {
-            ui.set_width(440.0);
+            let modal_w = ui.available_width().min(440.0);
+            ui.set_width(modal_w);
             match &modal {
                 Modal::ComingSoon { title, body, icon } => {
                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(52.0), egui::Sense::hover());

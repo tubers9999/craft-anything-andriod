@@ -253,6 +253,10 @@ const CHROMIUM_PATHS: &[KnownPath] = &[
     linux_home(".local/share/flatpak/exports/bin/com.brave.Browser"),
     linux_home(".local/share/flatpak/exports/bin/org.chromium.Chromium"),
     linux_home(".local/share/flatpak/exports/bin/com.microsoft.Edge"),
+    linux("/data/data/com.termux/files/usr/bin", "chromium"),
+    linux("/data/data/com.termux/files/usr/bin", "chromium-browser"),
+    linux("/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/bin", "chromium"),
+    linux("/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/bin", "chromium-browser"),
 ];
 
 /// Android platform-tools r37.0.1. SHA-256 computed from Google's files, whose size and SHA-1
