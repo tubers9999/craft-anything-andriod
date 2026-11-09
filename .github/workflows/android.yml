@@ -121,20 +121,25 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.5-android
-          name: "Craft Anything Android v0.4.5 (RedGlitchX Edition)"
+          tag_name: v0.4.6-android
+          name: "Craft Anything Android v0.4.6 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.5)
+            ## 📱 Craft Anything Android APK (v0.4.6)
 
             Official automated Android release build by **RedGlitchX**.
 
-            ### 🚀 What's New in v0.4.5:
-            - **XML Tool Call Parser for Local & Custom Models**: Fully parses `<tool_call>`, `<function=...>`, `<function name="...">`, and `<parameter name="...">` XML tags emitted by models like Hermes, Qwen, DeepSeek, and Mythox AI. Strips raw XML dump from chat and seamlessly routes tool execution (`build_file_write`, etc.).
-            - **Intelligent Tool Alias Resolution**: Automatically maps short/informal model tool calls (`write`, `file_write`, `list`, `read`, `edit`, `command`, `bash`) to their corresponding Craft Anything build tools (`build_file_write`, etc.).
-            - **Portrait Mobile Title Bar Overlap Fix**: Completely resolved text collisions and button overlap on portrait mobile screens by hiding redundant "Craft Anything" text, truncating long project names, and streamlining right-side controls.
+            ### 🚀 What's New in v0.4.6:
+            - **Start Fresh with Unity, Rust & Godot**:
+              - When starting fresh ("Nothing — start fresh"), you can now directly choose game engines (Unity, Rust + Macroquad, Godot, Unreal Engine) with a single tap.
+              - Keywords like `unity`, `rust`, `godot`, `unreal`, `game`, `joc` (Romanian) are now properly recognized in fresh project prompts.
+              - On Android, project initialization no longer gets blocked by missing desktop engine installer dialogs; the AI coding agent directly generates all Unity C# scripts, Rust Cargo projects, and Godot scene/GDScript files.
+            - **Custom Image Generation API (OpenAI / Local SD / ComfyUI / DALL-E)**:
+              - In addition to Fal.ai, you can now configure custom image generation endpoints (OpenAI DALL-E 3, Stable Diffusion, ComfyUI, LocalAI, Ollama).
+              - Key input accepts standard OpenAI keys, custom endpoint addresses (e.g. `http://192.168.1.50:5000/v1`), or `key@http://endpoint`.
+              - Supports both Base64 (`b64_json`) and URL image outputs.
 
             - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **Original Project:** ArtCraft Team & Craft Anything contributors
@@ -144,12 +149,11 @@ jobs:
             - **Signatures:** v1 (JAR) + v2 (APK Signature v2) + v3 (APK Signature v3)
             - **Alignment:** 4-byte page aligned (zipalign)
 
-            ### ✨ Previous v0.4.4 Highlights:
-            - **Portrait/Vertical Screen Support**: Redesigned Settings modal, modals, and Game Files mode with responsive layouts and top horizontal tabs so no screen rotation is required.
-            - **Clipboard & Direct Paste Buttons**: Added one-tap paste buttons next to Server Address endpoints, API Keys (OpenAI, Anthropic, Gemini, Groq, OpenRouter), Fal.ai keys, Website URLs, and the main Prompt input box.
-            - **Fallback Paste Dialog**: Included in-app modal paste input for Android environments where background clipboard access is restricted.
+            ### ✨ Previous v0.4.5 Highlights:
+            - **XML Tool Call Parser for Local & Custom Models**: Fully parses `<tool_call>`, `<function=...>`, and `<parameter name="...">` tags emitted by Hermes, Qwen, DeepSeek, and Mythox AI models.
+            - **Portrait Mobile Title Bar Overlap Fix**: Completely resolved text collisions and button overlap on portrait mobile screens.
 
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.5-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.6-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

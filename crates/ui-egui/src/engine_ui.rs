@@ -397,6 +397,11 @@ impl CraftApp {
         self.asset_keys.as_ref().map(|k| k.get(fal::ID).copied().unwrap_or(false))
     }
 
+    /// Whether any asset key (fal.ai or custom) is set up.
+    pub fn has_asset_key(&self) -> Option<bool> {
+        self.asset_keys.as_ref().map(|k| k.values().any(|&has| has))
+    }
+
     /// Save an asset provider's key in the system keychain.
     pub fn save_asset_key(&mut self, provider: String, key: String) {
         let hub = self.hub.clone();
@@ -428,7 +433,7 @@ impl CraftApp {
             }
             None => self.state.make.generate_assets = on,
         }
-        if on && self.fal_key() == Some(false) {
+        if on && self.has_asset_key() == Some(false) {
             self.state.modal = Some(Modal::Assets);
         }
     }
@@ -445,7 +450,7 @@ fn key_field(app: &mut CraftApp, ui: &mut Ui, provider: &dyn AssetProvider, save
         let r = ui.add(
             egui::TextEdit::singleline(key)
                 .password(true)
-                .hint_text(trf("Paste your {name} key", &[("name", provider.name())]))
+                .hint_text(trf("Key or key@endpoint for {name}", &[("name", provider.name())]))
                 .desired_width(field_w)
                 .frame(widgets::text_field_frame_compact(&t)),
         );
@@ -472,25 +477,25 @@ pub fn assets_toggle(app: &mut CraftApp, ui: &mut Ui, mut on: bool) {
     if widgets::toggle(ui, &mut on, "Generate custom pictures and models").changed() {
         app.set_generate_assets(on);
     }
-    let no_key = on && app.fal_key() == Some(false);
+    let no_key = on && app.has_asset_key() == Some(false);
     let note = if no_key {
-        tr("Needs a fal.ai key. Until then the game is built without them.")
+        tr("Needs a fal.ai key or Custom Image API. Until then the game is built without them.")
     } else {
         let p = AssetPrices::of(app);
         trf(
-            "Made with fal.ai and paid from your account: {model} a 3D model, {picture} a picture. Off, the game is built without them.",
+            "Made with your configured image AI (fal.ai or Custom API): {model} a 3D model, {picture} a picture. Off, the game is built without them.",
             &[("model", &p.model), ("picture", &p.picture)],
         )
     };
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(note).color(if no_key { t.warning } else { t.text_dim }).size(theme::SMALL));
-        if no_key && widgets::link(ui, "Add a fal.ai key").clicked() {
+        if no_key && widgets::link(ui, "Add an image API key").clicked() {
             app.state.modal = Some(Modal::Assets);
         }
     });
 }
 
-/// Asks for a fal.ai key when generated assets are turned on without one.
+/// Asks for an image AI key (fal.ai or Custom API) when generated assets are turned on without one.
 pub fn assets_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
     ui.set_width(ui.available_width().min(520.0));
@@ -499,31 +504,42 @@ pub fn assets_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         ui.painter().rect_filled(rect, t.radius, t.accent_soft);
         icons::paint(ui, rect, "boxes", 24.0, t.accent_ink);
         ui.vertical(|ui| {
-            ui.label(theme::heading(tr("Your fal.ai key"), theme::SECTION));
-            ui.label(RichText::new(tr("Generated pictures and 3D models are made with fal.ai.")).color(t.text_dim));
+            ui.label(theme::heading(tr("Image & Game Assets AI"), theme::SECTION));
+            ui.label(RichText::new(tr("Generated pictures and 3D models via fal.ai or Custom API.")).color(t.text_dim));
         });
     });
     ui.add_space(12.0);
     ui.add(
         egui::Label::new(
-            RichText::new({
-                let p = AssetPrices::of(app);
-                trf(
-                    "The builder makes the game's 3D models and textures from descriptions of original designs, paid from your fal.ai account. Models are low-poly so the game runs fast. A textured model costs {model} and a picture {picture}. Each project has a {budget} budget, and you're asked before it goes over. The key is kept in your system keychain.",
-                    &[("model", &p.model), ("picture", &p.picture), ("budget", &p.budget)],
-                )
-            })
+            RichText::new(tr(
+                "You can use fal.ai or any Custom OpenAI-compatible Image API (OpenAI DALL-E, Stable Diffusion, ComfyUI, LocalAI). Enter an API key, endpoint URL (e.g. http://192.168.1.50:5000/v1), or key@http://endpoint."
+            ))
             .size(theme::BODY),
         )
         .wrap(),
     );
     ui.add_space(10.0);
-    let fal = fal::Fal::default();
-    keys_link(ui, &fal);
-    ui.add_space(8.0);
-    if let Some(key) = key_field(app, ui, &fal, "Save") {
-        *close = true;
-        app.save_asset_key(fal.id().into(), key);
+    let all = AssetProviders::built_in();
+    for provider in all.ids().into_iter().filter_map(|id| all.get(id)) {
+        ui.add_space(6.0);
+        ui.label(RichText::new(provider.name()).size(theme::SMALL).strong());
+        let stored = app.asset_keys.as_ref().and_then(|k| k.get(provider.id()).copied());
+        ui.push_id(format!("modal_{}", provider.id()), |ui| {
+            if stored == Some(true) {
+                ui.horizontal(|ui| {
+                    widgets::pill(ui, "Key saved", t.success, t.raised);
+                    if widgets::secondary(ui, None, "Remove").clicked() {
+                        app.remove_asset_key(provider.id().into());
+                    }
+                });
+            } else {
+                if let Some(key) = key_field(app, ui, provider.as_ref(), "Save") {
+                    *close = true;
+                    app.save_asset_key(provider.id().into(), key);
+                }
+                keys_link(ui, provider.as_ref());
+            }
+        });
     }
     ui.add_space(14.0);
     if widgets::secondary(ui, None, "Not now").clicked() {
@@ -715,7 +731,12 @@ fn status_line(app: &mut CraftApp, ui: &mut Ui, b: Builder, offer: bool) {
             icons::show(ui, "check", 16.0, t.success);
             let v = inv.best(b).map(|i| i.version.clone()).unwrap_or_default();
             let what = if v.is_empty() { b.name().to_string() } else { format!("{} {v}", b.name()) };
-            ui.label(RichText::new(trf("Ready: {what} is on this computer.", &[("what", &what)])).color(t.text_dim).size(theme::SMALL));
+            let msg = if cfg!(target_os = "android") {
+                trf("Ready: {name} project code and files will be generated.", &[("name", b.name())])
+            } else {
+                trf("Ready: {what} is on this computer.", &[("what", &what)])
+            };
+            ui.label(RichText::new(msg).color(t.text_dim).size(theme::SMALL));
         }
         Some(inv) => {
             icons::show(ui, "download", 16.0, t.warning);

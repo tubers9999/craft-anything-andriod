@@ -535,8 +535,11 @@ impl Inventory {
         self.engines.iter().find(|i| i.builder == b)
     }
 
-    /// Ready to build: Unreal also needs C++ tools.
+    /// Ready to build: Unreal also needs C++ tools. On Android, all builders are ready for code/asset generation.
     pub fn ready(&self, b: Builder) -> bool {
+        if cfg!(target_os = "android") {
+            return true;
+        }
         self.best(b).is_some() && (b != Builder::Unreal || self.cpp_tools)
     }
 }
@@ -585,6 +588,18 @@ pub fn inventory(p: &Places) -> Inventory {
     engines.extend(godot_installs(p));
     if let Some(cargo) = p.use_path.then(|| craft_anything_platform::which("cargo")).flatten() {
         engines.push(Installed { builder: Builder::Rust, version: String::new(), program: cargo });
+    } else if cfg!(target_os = "android") {
+        let termux_cargo = PathBuf::from("/data/data/com.termux/files/usr/bin/cargo");
+        let prog = if termux_cargo.is_file() { termux_cargo } else { PathBuf::from("cargo") };
+        engines.push(Installed { builder: Builder::Rust, version: "mobile".into(), program: prog });
+    }
+    if cfg!(target_os = "android") {
+        if !engines.iter().any(|i| i.builder == Builder::Unity) {
+            engines.push(Installed { builder: Builder::Unity, version: "mobile".into(), program: PathBuf::from("unity") });
+        }
+        if !engines.iter().any(|i| i.builder == Builder::Godot) {
+            engines.push(Installed { builder: Builder::Godot, version: "mobile".into(), program: PathBuf::from("godot") });
+        }
     }
     engines.sort_by(|a, b| (a.builder as u8).cmp(&(b.builder as u8)).then_with(|| version_key(&b.version).cmp(&version_key(&a.version))));
     engines.dedup_by(|a, b| a.program == b.program);

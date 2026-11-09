@@ -241,7 +241,16 @@ fn assets_image_generate(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput,
     };
     let mut j = job(ctx)?;
     let (path, rel) = save_path(&j.ws, &p.save_as, "png")?;
-    let model = Catalogue::built_in().image_model(ctx.session.settings.assets.image_model.as_deref())?;
+    let catalogue = Catalogue::built_in();
+    let model_id = ctx.session.settings.assets.image_model.as_deref()
+        .or_else(|| {
+            if j.keys.contains_key("custom") && !j.keys.contains_key("fal") {
+                Some("custom-api")
+            } else {
+                None
+            }
+        });
+    let model = catalogue.image_model(model_id)?;
     let req = AssetRequest::Image { model, prompt, shape };
     let provider = j.providers.for_request(&req)?;
     let key = j.key(provider.as_ref())?;
@@ -274,7 +283,15 @@ fn assets_model_generate(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput,
     // From a prompt, a picture is made first: with the picture model chosen in Settings.
     let mut picture_maker = None;
     if from_prompt {
-        let image_model = catalogue.image_model(ctx.session.settings.assets.image_model.as_deref())?;
+        let image_model_id = ctx.session.settings.assets.image_model.as_deref()
+            .or_else(|| {
+                if j.keys.contains_key("custom") && !j.keys.contains_key("fal") {
+                    Some("custom-api")
+                } else {
+                    None
+                }
+            });
+        let image_model = catalogue.image_model(image_model_id)?;
         let picture_req = AssetRequest::Image { model: image_model, prompt: &p.prompt, shape: Shape::Square };
         let picture_provider = j.providers.for_request(&picture_req)?;
         let picture_key = j.key(picture_provider.as_ref())?;

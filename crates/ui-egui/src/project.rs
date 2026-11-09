@@ -76,6 +76,7 @@ impl CraftApp {
         let game = make::is_game(&self.kinds, &draft);
         let engine = if game { crate::engine_ui::chosen(&self.kinds, &draft) } else { None };
         if let Some(b) = engine
+            && !cfg!(target_os = "android")
             && !self.game_engines.as_ref().is_some_and(|i| i.ready(b))
         {
             self.engine_flow.start_after = true;

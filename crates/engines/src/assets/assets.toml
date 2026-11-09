@@ -40,6 +40,14 @@ endpoint = "fal-ai/flux/schnell"
 usd_per_megapixel = 0.003
 licence = "Apache-2.0 (model weights)"
 
+[[image]]
+id = "custom-api"
+provider = "custom"
+name = "Custom Image API (OpenAI / Local / SD)"
+endpoint = "images/generations"
+usd_per_image = 0.0
+licence = "Custom API / Local"
+
 # Game-ready 3D models (GLB) from a picture, billed per model; `faces` is the face-count range the
 # model accepts.
 [[model_3d]]

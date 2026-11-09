@@ -61,8 +61,23 @@ pub fn resolve_target(d: &MakeDraft) -> TargetRef {
 /// A game is being copied or made, so it's built with a game engine ("Build with").
 pub fn is_game(kinds: &craft_anything_ai::rebuild::KindRegistry, d: &MakeDraft) -> bool {
     use craft_anything_ai::rebuild::GameKind;
+    if d.builder.is_some() || d.game {
+        return true;
+    }
     if let Some(stack) = own_stack(kinds, d) {
         return craft_anything_engines::game::Builder::from_stack(stack).is_some();
+    }
+    let req_lower = d.request.to_lowercase();
+    if req_lower.contains("unity")
+        || req_lower.contains("rust")
+        || req_lower.contains("godot")
+        || req_lower.contains("unreal")
+        || req_lower.contains("game")
+        || req_lower.contains("joc")
+        || req_lower.contains("bevy")
+        || req_lower.contains("macroquad")
+    {
+        return true;
     }
     d.found.is_some()
         || (d.game && matches!(d.target, TargetRef::Local { .. }))
@@ -268,12 +283,23 @@ fn request_box(app: &mut CraftApp, ui: &mut Ui, hint: &str, attach: Option<&str>
 
 /// For a game: the engine it's built with, and whether the builder may generate its assets.
 fn engine_choices(app: &mut CraftApp, ui: &mut Ui) {
+    let is_scratch = app.state.make.target == TargetRef::None && !app.state.make.editing_url && app.state.make.url.is_empty();
     if is_game(&app.kinds, &app.state.make) {
         ui.add_space(22.0);
         crate::engine_ui::build_with(app, ui);
         ui.add_space(14.0);
         let on = app.state.make.generate_assets;
         crate::engine_ui::assets_toggle(app, ui, on);
+    } else if is_scratch {
+        ui.add_space(14.0);
+        let t = Tokens::get(ui.ctx());
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tr("Fresh project type:")).size(theme::SMALL).color(t.text_dim));
+            if widgets::secondary(ui, Some("puzzle"), "Game (Unity, Rust, Godot…)").clicked() {
+                app.state.make.game = true;
+                app.state.make.builder = Some(craft_anything_engines::game::Builder::Unity);
+            }
+        });
     }
 }
 

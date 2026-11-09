@@ -4,6 +4,7 @@
 //! ([`Catalogue`]), so a cost is known before anything is spent, and every generation reports
 //! what it cost. Audio would be one more [`AssetRequest`] variant and table.
 
+pub mod custom;
 pub mod fal;
 
 use craft_anything_evidence::{ErrorCode, ToolError};
@@ -168,16 +169,28 @@ impl Catalogue {
     pub fn fallback() -> Catalogue {
         Catalogue {
             default: Defaults { image: "nano-banana-pro".into(), model_3d: "tripo-p1".into() },
-            image: vec![ImageModel {
-                id: "nano-banana-pro".into(),
-                provider: fal::ID.into(),
-                name: "Nano Banana Pro".into(),
-                endpoint: "fal-ai/nano-banana-pro".into(),
-                usd_per_megapixel: 0.0,
-                usd_per_image: 0.15,
-                size_by: SizeBy::AspectRatio,
-                licence: "Commercial use enabled through fal.ai".into(),
-            }],
+            image: vec![
+                ImageModel {
+                    id: "nano-banana-pro".into(),
+                    provider: fal::ID.into(),
+                    name: "Nano Banana Pro".into(),
+                    endpoint: "fal-ai/nano-banana-pro".into(),
+                    usd_per_megapixel: 0.0,
+                    usd_per_image: 0.15,
+                    size_by: SizeBy::AspectRatio,
+                    licence: "Commercial use enabled through fal.ai".into(),
+                },
+                ImageModel {
+                    id: "custom-api".into(),
+                    provider: custom::ID.into(),
+                    name: "Custom Image API (OpenAI / Local / SD)".into(),
+                    endpoint: "images/generations".into(),
+                    usd_per_megapixel: 0.0,
+                    usd_per_image: 0.0,
+                    size_by: SizeBy::ImageSize,
+                    licence: "Custom API / Local".into(),
+                },
+            ],
             model_3d: vec![Model3d {
                 id: "tripo-p1".into(),
                 provider: fal::ID.into(),
@@ -312,9 +325,14 @@ impl Default for AssetProviders {
 }
 
 impl AssetProviders {
-    /// fal.ai.
+    /// fal.ai and Custom Image API (OpenAI / Local / SD).
     pub fn built_in() -> AssetProviders {
-        AssetProviders { providers: vec![Arc::new(fal::Fal::default())] }
+        AssetProviders {
+            providers: vec![
+                Arc::new(fal::Fal::default()),
+                Arc::new(custom::CustomImage::default()),
+            ],
+        }
     }
 
     /// Add a provider, or replace the one with the same id.
@@ -439,7 +457,7 @@ mod tests {
             }
         }
         let mut r = AssetProviders::built_in();
-        assert_eq!(r.ids(), vec!["fal"]);
+        assert!(r.ids().contains(&"fal") && r.ids().contains(&"custom"));
         let mut m = Catalogue::fallback().image_model(None).unwrap().clone();
         m.provider = "stub".into();
         let req = AssetRequest::Image { model: &m, prompt: "a crate", shape: Shape::Square };
@@ -449,5 +467,14 @@ mod tests {
         assert_eq!(p.estimate(&req).unwrap(), m.cost(Shape::Square));
         assert_eq!(p.generate("k", &req).unwrap().cost_usd, m.cost(Shape::Square));
         assert_eq!(req.kind(), AssetKind::Image);
+    }
+
+    #[test]
+    fn custom_image_provider_resolves() {
+        let providers = AssetProviders::built_in();
+        assert!(providers.get("custom").is_some());
+        let c = Catalogue::built_in();
+        let custom = c.image_model(Some("custom-api")).unwrap();
+        assert_eq!(custom.provider, "custom");
     }
 }
