@@ -296,7 +296,7 @@ fn mobile_web_site_open(ctx: &mut Ctx<'_>, url: &str, p: &OpenParams, _dl: &Dead
         "failed_requests": if status >= 400 { vec![format!("HTTP {status}")] } else { vec![] }
     });
 
-    let dummy_endpoint = Endpoint { host: "127.0.0.1".into(), port: 0 };
+    let dummy_endpoint = cdp::parse_endpoint("http://127.0.0.1:9222").expect("valid loopback");
     let dummy_browser = Browser::attached(&dummy_endpoint, "Mobile Web Engine", "1.0");
     let site = Arc::new(SiteBrowser {
         endpoint: dummy_endpoint,
@@ -959,7 +959,7 @@ fn web_site_capture(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput, Tool
     p.include_html &= !visitor;
     let dl = deadline(ctx, p.timeout_secs.max(30))?;
     let site = open_site(ctx, &dl)?;
-    if site.endpoint.port == 0 {
+    if site.product == "Mobile Web Engine" {
         return mobile_web_site_capture(ctx, &site, &p, &dl);
     }
     let mut client = page_client(&site, &dl)?;
