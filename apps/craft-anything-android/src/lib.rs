@@ -29,6 +29,7 @@ fn android_main(app: AndroidApp) {
         // SAFETY: Only set HOME at startup before background threads spawn.
         unsafe {
             std::env::set_var("HOME", &path);
+            std::env::set_var("CRAFT_ANYTHING_CONFIG_DIR", &path);
         }
         log::info!("Configured app data directory: {}", path.display());
     }
