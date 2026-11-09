@@ -39,8 +39,12 @@ fn label(size: f32, s: f32) -> f32 {
 /// The title bar across the top of the window.
 pub fn bar(app: &mut CraftApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let height = HEIGHT * scale(ui.ctx());
+    let top_inset = if cfg!(target_os = "android") { 36.0 } else { 0.0 };
+    let height = (HEIGHT + top_inset) * scale(ui.ctx());
     egui::Panel::top("titlebar").exact_size(height).frame(egui::Frame::new().fill(t.chrome)).show(ui, |ui| {
+        if top_inset > 0.0 {
+            ui.add_space(top_inset);
+        }
         crate::guard_ui(ui, "title bar", |ui| show(app, ui));
     });
 }

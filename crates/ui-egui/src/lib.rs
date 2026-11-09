@@ -282,7 +282,7 @@ pub struct ServerForm {
 }
 
 /// What a file dialog was for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Pick {
     OpenFile,
     OpenFolder,
@@ -1118,7 +1118,15 @@ impl CraftApp {
             Ok(Done::Picked { pick, path: handle.map(|h| h.path().to_path_buf()) })
         });
         #[cfg(target_os = "android")]
-        self.toast(tr("File picker is not available on Android: enter paths directly in the input box."), false);
+        {
+            let current_dir = self.settings.projects_dir.clone().unwrap_or_else(craft_anything_engine::workspace::default_projects_dir);
+            let input_path = current_dir.display().to_string();
+            self.state.modal = Some(crate::state::Modal::FilePicker {
+                pick,
+                current_dir,
+                input_path,
+            });
+        }
     }
 
     /// The overview tool used for a "first look" and for answering without an AI.

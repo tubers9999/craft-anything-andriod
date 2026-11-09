@@ -177,6 +177,9 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                 Modal::Pin => crate::pins::pin_modal(app, ui, &mut close),
                 Modal::PinRename(root, id) => crate::pins::rename_modal(app, ui, root, *id, &mut close),
                 Modal::PinDelete(root, id) => crate::pins::delete_modal(app, ui, root, *id, &mut close),
+                Modal::FilePicker { pick, current_dir, input_path } => {
+                    file_picker_modal(app, ui, *pick, current_dir, input_path, &mut close);
+                }
                 Modal::About => {
                     ui.label(theme::heading("Craft Anything", theme::SECTION));
                     ui.label(RichText::new(format!("{} {}", tr("Version"), env!("CARGO_PKG_VERSION"))).color(t.text_dim));
@@ -204,4 +207,108 @@ pub fn dismiss(app: &mut CraftApp) {
         app.engine_flow.start_after = false;
     }
     app.state.modal = None;
+}
+
+pub fn file_picker_modal(
+    app: &mut CraftApp,
+    ui: &mut egui::Ui,
+    pick: crate::Pick,
+    current_dir: &std::path::Path,
+    input_path: &str,
+    close: &mut bool,
+) {
+    let t = Tokens::get(ui.ctx());
+    ui.label(theme::heading("Choose Folder or File", theme::SECTION));
+    ui.add_space(8.0);
+
+    // Quick shortcuts
+    ui.label(RichText::new("Quick shortcuts:").color(t.text_dim));
+    ui.horizontal_wrapped(|ui| {
+        for (label, path) in [
+            ("📁 Documents", "/sdcard/Documents"),
+            ("📁 SDCard", "/sdcard"),
+            ("📁 Download", "/sdcard/Download"),
+            ("📁 Termux", "/data/data/com.termux/files/home"),
+        ] {
+            if ui.button(label).clicked() {
+                app.state.modal = Some(crate::state::Modal::FilePicker {
+                    pick,
+                    current_dir: std::path::PathBuf::from(path),
+                    input_path: path.to_string(),
+                });
+            }
+        }
+    });
+
+    ui.add_space(8.0);
+    ui.label(RichText::new("Selected path:").color(t.text_dim));
+
+    let mut current_input = input_path.to_string();
+    let r = ui.add(
+        egui::TextEdit::singleline(&mut current_input)
+            .desired_width(f32::INFINITY)
+            .frame(widgets::text_field_frame(&t)),
+    );
+    if r.changed() {
+        app.state.modal = Some(crate::state::Modal::FilePicker {
+            pick,
+            current_dir: std::path::PathBuf::from(&current_input),
+            input_path: current_input.clone(),
+        });
+    }
+
+    ui.add_space(8.0);
+
+    // Directory contents
+    ui.label(RichText::new("Directory contents:").color(t.text_dim));
+    egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+        if let Some(parent) = current_dir.parent() {
+            if ui.button("⬆ .. (Up)").clicked() {
+                let p = parent.to_path_buf();
+                let s = p.display().to_string();
+                app.state.modal = Some(crate::state::Modal::FilePicker {
+                    pick,
+                    current_dir: p,
+                    input_path: s,
+                });
+            }
+        }
+        if let Ok(entries) = std::fs::read_dir(current_dir) {
+            let mut entries: Vec<_> = entries.flatten().collect();
+            entries.sort_by_key(|e| (!e.path().is_dir(), e.file_name()));
+            for entry in entries.into_iter().take(40) {
+                let path = entry.path();
+                let name = entry.file_name().to_string_lossy().to_string();
+                let is_dir = path.is_dir();
+                let icon = if is_dir { "📁" } else { "📄" };
+                let label = format!("{icon} {name}");
+                if is_dir {
+                    if ui.button(label).clicked() {
+                        let s = path.display().to_string();
+                        app.state.modal = Some(crate::state::Modal::FilePicker {
+                            pick,
+                            current_dir: path,
+                            input_path: s,
+                        });
+                    }
+                } else {
+                    ui.label(label);
+                }
+            }
+        } else {
+            ui.label(RichText::new("Cannot list contents (type path manually above)").color(t.text_dim));
+        }
+    });
+
+    ui.add_space(14.0);
+    ui.horizontal(|ui| {
+        if widgets::primary(ui, "Select This Path").clicked() {
+            let chosen = std::path::PathBuf::from(&current_input);
+            app.on_done(crate::Done::Picked { pick, path: Some(chosen) });
+            *close = true;
+        }
+        if widgets::subtle(ui, "Cancel").clicked() {
+            *close = true;
+        }
+    });
 }

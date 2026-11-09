@@ -1351,6 +1351,17 @@ fn forget_old_pastes(dir: &Path, keep: &[PathBuf]) {
 
 /// The default projects folder: `Documents/Craft Anything`, else `~/Craft Anything`.
 pub fn default_projects_dir() -> PathBuf {
+    #[cfg(target_os = "android")]
+    {
+        let sd_docs = PathBuf::from("/sdcard/Documents/CraftAnything");
+        if std::fs::create_dir_all(&sd_docs).is_ok() {
+            return sd_docs;
+        }
+        let sd = PathBuf::from("/sdcard/CraftAnything");
+        if std::fs::create_dir_all(&sd).is_ok() {
+            return sd;
+        }
+    }
     dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from(".")).join("Craft Anything")
 }
 

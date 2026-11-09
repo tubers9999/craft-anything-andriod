@@ -20,7 +20,22 @@ pub fn which_all(name: &str) -> Vec<PathBuf> {
 const USUAL_HOME_DIRS: &[&str] =
     &[".local/bin", ".claude/local", ".npm-global/bin", ".bun/bin", ".volta/bin", ".cargo/bin", ".opencode/bin", ".grok/bin", "bin"];
 #[cfg(unix)]
-const USUAL_DIRS: &[&str] = &["/opt/homebrew/bin", "/usr/local/bin"];
+const USUAL_DIRS: &[&str] = &[
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/data/data/com.termux/files/usr/bin",
+    "/data/data/com.termux/files/usr/bin/applets",
+    "/data/data/com.termux/files/home/.local/bin",
+    "/data/data/com.termux/files/home/.cargo/bin",
+    "/data/data/com.termux/files/home/.npm-global/bin",
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/bin",
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/bin",
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/local/bin",
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/.local/bin",
+    "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/.cargo/bin",
+    "/system/bin",
+    "/system/xbin",
+];
 // Claude Code's installer, npm (without a custom prefix), WinGet's portable packages (Claude
 // Code's WinGet install), bun, cargo, Hermes Agent's installer (`%LOCALAPPDATA%\hermes\bin`, #116)
 // and Grok Build (`%USERPROFILE%\.grok\bin`). PATH may not have them yet in an app started before

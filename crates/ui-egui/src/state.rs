@@ -389,6 +389,12 @@ pub enum Modal {
     PinRename(PathBuf, u32),
     /// Remove a pin? (Its copy can't be brought back.)
     PinDelete(PathBuf, u32),
+    /// In-app file / folder picker for Android or systems without native dialogs.
+    FilePicker {
+        pick: crate::Pick,
+        current_dir: PathBuf,
+        input_path: String,
+    },
 }
 
 /// The command palette.

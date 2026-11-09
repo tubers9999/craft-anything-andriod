@@ -34,6 +34,40 @@ fn android_main(app: AndroidApp) {
         log::info!("Configured app data directory: {}", path.display());
     }
 
+    // Enhance PATH with Termux and PRoot Ubuntu locations so coding agents (claude, codex, gemini) and tools are detected
+    let termux_bins = [
+        "/data/data/com.termux/files/usr/bin",
+        "/data/data/com.termux/files/usr/bin/applets",
+        "/data/data/com.termux/files/home/.local/bin",
+        "/data/data/com.termux/files/home/.cargo/bin",
+        "/data/data/com.termux/files/home/.npm-global/bin",
+        "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/bin",
+        "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/bin",
+        "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/usr/local/bin",
+        "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/.local/bin",
+        "/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/.cargo/bin",
+        "/system/bin",
+        "/system/xbin",
+    ];
+    let cur_path = std::env::var("PATH").unwrap_or_default();
+    let augmented_path = format!("{}:{}", termux_bins.join(":"), cur_path);
+    unsafe {
+        std::env::set_var("PATH", &augmented_path);
+    }
+
+    // Set fallback CLAUDE_CONFIG_DIR if not already set, checking PRoot and Termux home
+    if std::env::var_os("CLAUDE_CONFIG_DIR").is_none() {
+        let proot_claude = std::path::Path::new("/data/data/com.termux/files/usr/var/lib/proot-distro/installed-rootfs/ubuntu/root/.claude");
+        let termux_claude = std::path::Path::new("/data/data/com.termux/files/home/.claude");
+        if proot_claude.exists() {
+            unsafe { std::env::set_var("CLAUDE_CONFIG_DIR", proot_claude); }
+            log::info!("Detected Claude Code config in PRoot Ubuntu: {}", proot_claude.display());
+        } else if termux_claude.exists() {
+            unsafe { std::env::set_var("CLAUDE_CONFIG_DIR", termux_claude); }
+            log::info!("Detected Claude Code config in Termux: {}", termux_claude.display());
+        }
+    }
+
     let settings = Settings::load();
     let mut session = Session::new(settings);
     let plugins = craft_anything_engine::plugins::install(&mut session);

@@ -121,13 +121,13 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.1-android
-          name: "Craft Anything Android v0.4.1 (RedGlitchX Edition)"
+          tag_name: v0.4.2-android
+          name: "Craft Anything Android v0.4.2 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.1)
+            ## 📱 Craft Anything Android APK (v0.4.2)
 
             Official automated Android release build by **RedGlitchX**.
 
@@ -139,7 +139,13 @@ jobs:
             - **Signatures:** v1 (JAR) + v2 (APK Signature v2) + v3 (APK Signature v3)
             - **Alignment:** 4-byte page aligned (zipalign)
 
+            ### ✨ New in v0.4.2:
+            - **Safe Area Inset:** Fixed top status bar overlapping buttons and titlebar on Android.
+            - **Built-in File & Folder Explorer:** Full in-app file/folder browser with quick shortcuts (`/sdcard/Documents`, `/sdcard`, `/sdcard/Download`, Termux).
+            - **Storage Integration:** Default project directory set to `/sdcard/Documents/CraftAnything` (accessible by any Android file manager).
+            - **Termux & PRoot CLI Integration:** Scans and executes coding agents and tools directly from Termux and PRoot Ubuntu environments.
+
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.1-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.2-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

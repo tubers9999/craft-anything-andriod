@@ -204,7 +204,6 @@ dependencies = [
  "ndk-context",
  "ndk-sys",
  "num_enum",
- "simd_cesu8",
  "thiserror 2.0.21",
 ]
 
@@ -1206,7 +1205,7 @@ dependencies = [
 
 [[package]]
 name = "craft-anything-android"
-version = "0.4.0"
+version = "0.4.2"
 dependencies = [
  "android_logger",
  "craft-anything-ai",
