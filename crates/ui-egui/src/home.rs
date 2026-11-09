@@ -292,7 +292,14 @@ pub fn file_picker_modal(
                         });
                     }
                 } else {
-                    ui.label(label);
+                    if ui.button(label).clicked() {
+                        let s = path.display().to_string();
+                        app.state.modal = Some(crate::state::Modal::FilePicker {
+                            pick,
+                            current_dir: current_dir.to_path_buf(),
+                            input_path: s,
+                        });
+                    }
                 }
             }
         } else {
@@ -304,10 +311,10 @@ pub fn file_picker_modal(
     ui.horizontal(|ui| {
         if widgets::primary(ui, "Select This Path").clicked() {
             let chosen = std::path::PathBuf::from(&current_input);
-            app.on_done(crate::Done::Picked { pick, path: Some(chosen) });
+            app.on_picked(pick, Some(chosen));
             *close = true;
         }
-        if widgets::subtle(ui, "Cancel").clicked() {
+        if widgets::secondary(ui, None, "Cancel").clicked() {
             *close = true;
         }
     });

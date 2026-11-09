@@ -3,11 +3,11 @@ resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.4.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.97"
-repository = "https://github.com/storytold/craft-anything"
+repository = "https://github.com/tubers9999/craft-anything-andriod"
 
 [workspace.dependencies]
 # internal

@@ -1129,6 +1129,42 @@ impl CraftApp {
         }
     }
 
+    /// Process the selected file or directory path.
+    pub fn on_picked(&mut self, pick: Pick, path: Option<std::path::PathBuf>) {
+        if let Some(path) = path {
+            match pick {
+                Pick::OpenFile | Pick::OpenFolder => self.open_path(path),
+                Pick::GhidraDir => {
+                    self.settings.engines.ghidra.install_dir = Some(path);
+                    self.settings_changed();
+                }
+                Pick::TargetFile | Pick::TargetFolder => {
+                    self.state.make.target = craft_anything_engine::workspace::TargetRef::Local { path: path.clone() };
+                    self.state.make.game = pick == Pick::TargetFolder;
+                    self.state.make.editing_url = false;
+                    self.state.make.builder = None;
+                    self.detect_game_engine(path);
+                }
+                Pick::ProjectsDir => {
+                    self.settings.projects_dir = Some(path);
+                    self.settings_changed();
+                    self.refresh_projects();
+                }
+                Pick::ProjectFolder => folders::picked(self, path),
+                Pick::OwnProject => folders::picked_own(self, path),
+                Pick::ExtraProjectsDir => self.add_project_folder(path),
+                Pick::GameFolder => game_files::folder_picked(self, path),
+                Pick::SavePicture => game_files::save_to(self, path),
+                Pick::AgentProgram => {
+                    if let Some(name) = self.picking_program_for.take() {
+                        self.set_agent_program(&name, Some(path.display().to_string()));
+                    }
+                }
+                Pick::Pictures | Pick::Attach => {}
+            }
+        }
+    }
+
     /// The overview tool used for a "first look" and for answering without an AI.
     pub fn first_look_tool(&self) -> Option<&'static str> {
         self.first_tool(&["core_target_triage", "core_overview_show", "native_overview", "core_session_show"])
@@ -1594,40 +1630,7 @@ impl CraftApp {
                 }
                 Err(e) => self.toast(e.for_people(), true),
             },
-            Done::Picked { pick, path } => {
-                if let Some(path) = path {
-                    match pick {
-                        Pick::OpenFile | Pick::OpenFolder => self.open_path(path),
-                        Pick::GhidraDir => {
-                            self.settings.engines.ghidra.install_dir = Some(path);
-                            self.settings_changed();
-                        }
-                        Pick::TargetFile | Pick::TargetFolder => {
-                            self.state.make.target = craft_anything_engine::workspace::TargetRef::Local { path: path.clone() };
-                            self.state.make.game = pick == Pick::TargetFolder;
-                            self.state.make.editing_url = false;
-                            self.state.make.builder = None;
-                            self.detect_game_engine(path);
-                        }
-                        Pick::ProjectsDir => {
-                            self.settings.projects_dir = Some(path);
-                            self.settings_changed();
-                            self.refresh_projects();
-                        }
-                        Pick::ProjectFolder => folders::picked(self, path),
-                        Pick::OwnProject => folders::picked_own(self, path),
-                        Pick::ExtraProjectsDir => self.add_project_folder(path),
-                        Pick::GameFolder => game_files::folder_picked(self, path),
-                        Pick::SavePicture => game_files::save_to(self, path),
-                        Pick::AgentProgram => {
-                            if let Some(name) = self.picking_program_for.take() {
-                                self.set_agent_program(&name, Some(path.display().to_string()));
-                            }
-                        } // Several files: these come back as Done::Pictures / Done::ToAttach.
-                        Pick::Pictures | Pick::Attach => {}
-                    }
-                }
-            }
+            Done::Picked { pick, path } => self.on_picked(pick, path),
             Done::Pictures(files) => self.add_pictures(files),
             Done::ToAttach(files) => self.attach(files),
             Done::Pasted { project, files, refused } => self.pasted(project, files, refused),
