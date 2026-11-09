@@ -115,7 +115,7 @@ impl AssetProvider for CustomImage {
                     .with_remediation("Check that the custom endpoint implements OpenAI /images/generations."))
             }
             AssetRequest::Model3d { .. } => {
-                Err(ToolError::new(ErrorCode::Unsupported, "3D model generation currently requires Fal.ai (Tripo3D).").with_remediation("Use fal.ai key for 3D models."))
+                Err(ToolError::new(ErrorCode::NotSupported, "3D model generation currently requires Fal.ai (Tripo3D).").with_remediation("Use fal.ai key for 3D models."))
             }
         }
     }
