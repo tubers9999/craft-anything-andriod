@@ -155,7 +155,9 @@ fn archives(app: &mut CraftApp, ui: &mut Ui, w: f32) {
         let (path, kind) = (a["path"].as_str().unwrap_or_default(), a["kind"].as_str().unwrap_or_default());
         let (label, icon, _) = kind_label(kind);
         let selected = g.open.as_deref() == Some(path);
-        let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, 44.0), Sense::click());
+        let is_mobile = w < 450.0;
+        let h = if is_mobile { 52.0 } else { 44.0 };
+        let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), Sense::click());
         let fill = if selected {
             t.accent_soft
         } else if resp.hovered() {
@@ -167,15 +169,20 @@ fn archives(app: &mut CraftApp, ui: &mut Ui, w: f32) {
         let icon_rect = egui::Rect::from_center_size(egui::pos2(rect.left() + 24.0, rect.center().y), Vec2::splat(20.0));
         icons::paint(ui, icon_rect, icon, 18.0, if selected { t.accent_ink } else { t.text_dim });
         let name = a["name"].as_str().unwrap_or(path);
-        ui.painter().text(egui::pos2(rect.left() + 46.0, rect.center().y), egui::Align2::LEFT_CENTER, name, theme::medium(theme::SMALL), t.text);
         let detail = format!("{} · {}", tr(label), crate::human_bytes(a["size"].as_u64().unwrap_or(0) as usize));
-        ui.painter().text(
-            egui::pos2(rect.right() - 14.0, rect.center().y),
-            egui::Align2::RIGHT_CENTER,
-            detail,
-            egui::FontId::proportional(theme::CAPTION),
-            t.text_faint,
-        );
+        if is_mobile {
+            ui.painter().text(egui::pos2(rect.left() + 46.0, rect.top() + 16.0), egui::Align2::LEFT_CENTER, name, theme::medium(theme::SMALL), t.text);
+            ui.painter().text(egui::pos2(rect.left() + 46.0, rect.top() + 36.0), egui::Align2::LEFT_CENTER, detail, egui::FontId::proportional(theme::CAPTION), t.text_faint);
+        } else {
+            ui.painter().text(egui::pos2(rect.left() + 46.0, rect.center().y), egui::Align2::LEFT_CENTER, name, theme::medium(theme::SMALL), t.text);
+            ui.painter().text(
+                egui::pos2(rect.right() - 14.0, rect.center().y),
+                egui::Align2::RIGHT_CENTER,
+                detail,
+                egui::FontId::proportional(theme::CAPTION),
+                t.text_faint,
+            );
+        }
         if widgets::named(resp, name).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
             open = Some((path.to_string(), kind.to_string()));
         }
@@ -220,10 +227,11 @@ fn contents(app: &mut CraftApp, ui: &mut Ui) {
         ui.label(RichText::new(tr("Pictures can't be saved from IoStore containers yet; you can see what's inside.")).color(t.text_faint).size(theme::CAPTION));
         ui.add_space(6.0);
     }
+    let filter_w = ui.available_width().min(320.0);
     let r = ui.add(
         egui::TextEdit::singleline(&mut app.state.game.filter)
             .hint_text(tr("Filter by name"))
-            .desired_width(320.0)
+            .desired_width(filter_w)
             .frame(widgets::text_field_frame_compact(&t)),
     );
     widgets::named(r, "Filter the files");
@@ -236,17 +244,34 @@ fn contents(app: &mut CraftApp, ui: &mut Ui) {
         return;
     }
     let mut save = None;
+    let is_mobile = ui.available_width() < 450.0;
     for r in &rows {
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(row_name(r)).size(theme::SMALL));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if saves && widgets::secondary(ui, Some("download"), "Save picture").clicked() {
-                    save = Some(r.clone());
-                }
-                ui.label(RichText::new(row_detail(r)).color(t.text_faint).size(theme::CAPTION));
+        if is_mobile {
+            ui.vertical(|ui| {
+                ui.label(RichText::new(row_name(r)).font(theme::medium(theme::SMALL)));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(row_detail(r)).color(t.text_faint).size(theme::CAPTION));
+                    if saves {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if widgets::secondary(ui, Some("download"), "Save picture").clicked() {
+                                save = Some(r.clone());
+                            }
+                        });
+                    }
+                });
             });
-        });
-        ui.add_space(2.0);
+        } else {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(row_name(r)).size(theme::SMALL));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if saves && widgets::secondary(ui, Some("download"), "Save picture").clicked() {
+                        save = Some(r.clone());
+                    }
+                    ui.label(RichText::new(row_detail(r)).color(t.text_faint).size(theme::CAPTION));
+                });
+            });
+        }
+        ui.add_space(3.0);
     }
     let total = app.state.game.rows.len();
     if total > rows.len() && needle.is_empty() {

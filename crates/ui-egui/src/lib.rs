@@ -10,6 +10,7 @@
 pub mod approvals;
 pub mod builders;
 pub mod chat;
+pub mod clipboard;
 pub mod demo;
 pub mod detect_tabs;
 pub mod engine_ui;
@@ -744,6 +745,43 @@ impl CraftApp {
             if i < self.toast_at.len() {
                 self.toast_at.remove(i);
             }
+        }
+    }
+
+    /// Pastes text into the given target field, reading system clipboard if available,
+    /// or presenting the fallback in-app paste modal.
+    pub fn paste_into(&mut self, target: crate::state::PasteTarget) {
+        if let Some(text) = crate::clipboard::get_text() {
+            let val = text.trim().to_string();
+            match &target {
+                crate::state::PasteTarget::WebsiteUrl => self.state.url_input = val,
+                crate::state::PasteTarget::MakeUrl => self.state.make.url = val,
+                crate::state::PasteTarget::ServerAddress => self.server_form.address = val,
+                crate::state::PasteTarget::ServerKey => self.server_form.key = val,
+                crate::state::PasteTarget::AiKey(name) => {
+                    self.key_inputs.insert(name.clone(), val);
+                }
+                crate::state::PasteTarget::AssetKey(provider) => {
+                    self.key_inputs.insert(provider.clone(), val);
+                }
+                crate::state::PasteTarget::Prompt => {
+                    let field = if self.state.screen == crate::state::Screen::Home {
+                        &mut self.state.make.request
+                    } else if !self.state.input.is_empty() || self.state.screen == crate::state::Screen::Ask {
+                        &mut self.state.input
+                    } else {
+                        &mut self.state.project_input
+                    };
+                    if !field.is_empty() && !field.ends_with(' ') && !field.ends_with('\n') {
+                        field.push(' ');
+                    }
+                    field.push_str(&val);
+                }
+            }
+            self.toast(crate::i18n::tr("Pasted from clipboard"), false);
+        } else {
+            self.state.paste_input.clear();
+            self.state.modal = Some(crate::state::Modal::PasteInput { target });
         }
     }
 

@@ -203,7 +203,7 @@ pub fn deep_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
 /// Asked when Deep mode could use Ghidra and it isn't here: get it (then use it), or go on without.
 pub fn ghidra_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(520.0);
+    ui.set_width(ui.available_width().min(520.0));
     let ready = app.ghidra_ready();
     let downloading = app.ghidra_download();
     ui.horizontal(|ui| {
@@ -438,22 +438,30 @@ impl CraftApp {
 fn key_field(app: &mut CraftApp, ui: &mut Ui, provider: &dyn AssetProvider, save: &str) -> Option<String> {
     let t = Tokens::get(ui.ctx());
     let mut out = None;
+    let mut paste = false;
     ui.horizontal(|ui| {
         let key = app.key_inputs.entry(provider.id().into()).or_default();
+        let field_w = (ui.available_width() - 110.0).max(100.0).min(320.0);
         let r = ui.add(
             egui::TextEdit::singleline(key)
                 .password(true)
                 .hint_text(trf("Paste your {name} key", &[("name", provider.name())]))
-                .desired_width(320.0)
+                .desired_width(field_w)
                 .frame(widgets::text_field_frame_compact(&t)),
         );
         widgets::named(r, &trf("{name} key", &[("name", provider.name())]));
+        if icons::button(ui, "clipboard-list", 26.0, false, "Paste key").clicked() {
+            paste = true;
+        }
         let k = key.trim().to_string();
         if widgets::primary_icon(ui, None, save, !k.is_empty()).clicked() && !k.is_empty() {
             key.clear();
             out = Some(k);
         }
     });
+    if paste {
+        app.paste_into(crate::state::PasteTarget::AssetKey(provider.id().into()));
+    }
     out
 }
 
@@ -485,7 +493,7 @@ pub fn assets_toggle(app: &mut CraftApp, ui: &mut Ui, mut on: bool) {
 /// Asks for a fal.ai key when generated assets are turned on without one.
 pub fn assets_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(520.0);
+    ui.set_width(ui.available_width().min(520.0));
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(48.0), egui::Sense::hover());
         ui.painter().rect_filled(rect, t.radius, t.accent_soft);
@@ -630,15 +638,27 @@ pub fn build_with(app: &mut CraftApp, ui: &mut Ui) {
         }
         ui.add_space(8.0);
     }
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(tr("Build with")).size(theme::BODY).color(t.text_dim));
-        let names: Vec<&str> = Builder::ALL.iter().map(|b| b.name()).collect();
-        // Nothing is selected while the request names another way to build.
-        let sel = b.and_then(|b| Builder::ALL.iter().position(|x| *x == b)).unwrap_or(usize::MAX);
-        if let Some(i) = widgets::segmented(ui, &names, sel, 32.0) {
-            app.state.make.builder = Builder::ALL.get(i).copied();
-        }
-    });
+    if ui.available_width() < 450.0 {
+        ui.vertical(|ui| {
+            ui.label(RichText::new(tr("Build with")).size(theme::BODY).color(t.text_dim));
+            ui.add_space(4.0);
+            let names: Vec<&str> = Builder::ALL.iter().map(|b| b.name()).collect();
+            let sel = b.and_then(|b| Builder::ALL.iter().position(|x| *x == b)).unwrap_or(usize::MAX);
+            if let Some(i) = widgets::segmented(ui, &names, sel, 34.0) {
+                app.state.make.builder = Builder::ALL.get(i).copied();
+            }
+        });
+    } else {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tr("Build with")).size(theme::BODY).color(t.text_dim));
+            let names: Vec<&str> = Builder::ALL.iter().map(|b| b.name()).collect();
+            // Nothing is selected while the request names another way to build.
+            let sel = b.and_then(|b| Builder::ALL.iter().position(|x| *x == b)).unwrap_or(usize::MAX);
+            if let Some(i) = widgets::segmented(ui, &names, sel, 32.0) {
+                app.state.make.builder = Builder::ALL.get(i).copied();
+            }
+        });
+    }
     ui.add_space(6.0);
     match b {
         Some(b) => status_line(app, ui, b, true),
@@ -799,7 +819,7 @@ fn steps(app: &CraftApp, b: Builder, inv: &Inventory) -> Vec<Step> {
 /// The body of the "Get <engine>" dialog. Sets `close` when the person is done with it.
 pub fn modal(app: &mut CraftApp, ui: &mut Ui, b: Builder, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(520.0);
+    ui.set_width(ui.available_width().min(520.0));
     let Some(inv) = app.game_engines.clone() else {
         ui.horizontal(|ui| {
             ui.add(crate::widgets::Spinner::new().size(16.0).color(t.accent));

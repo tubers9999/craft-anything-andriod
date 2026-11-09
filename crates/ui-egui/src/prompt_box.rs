@@ -121,6 +121,8 @@ pub struct PromptOut {
     pub attach: bool,
     /// Ctrl+V with something other than text on the clipboard, where the box takes pictures.
     pub paste: bool,
+    /// Paste button clicked when system clipboard needs fallback modal.
+    pub paste_text: bool,
     pub stop: bool,
     /// Up was pressed at the start of the box while a message could be taken back.
     pub recall: bool,
@@ -262,7 +264,22 @@ pub fn show(ui: &mut Ui, text: &mut String, attachments: &[PathBuf], b: PromptBo
                 {
                     out.attach = true;
                 }
-                ui.label(RichText::new(tr("Enter to send · Shift+Enter for a new line")).size(theme::CAPTION).color(t.text_faint));
+                if icons::button(ui, "clipboard-list", 30.0, false, "Paste text").clicked() {
+                    if let Some(clip) = crate::clipboard::get_text() {
+                        let trimmed = clip.trim();
+                        if !trimmed.is_empty() {
+                            if !text.is_empty() && !text.ends_with(' ') && !text.ends_with('\n') {
+                                text.push(' ');
+                            }
+                            text.push_str(trimmed);
+                        }
+                    } else {
+                        out.paste_text = true;
+                    }
+                }
+                if ui.available_width() > 180.0 {
+                    ui.label(RichText::new(tr("Enter to send · Shift+Enter for a new line")).size(theme::CAPTION).color(t.text_faint));
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if b.send {
                         let ready = !text.trim().is_empty();

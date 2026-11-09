@@ -223,22 +223,30 @@ fn brain_card(app: &mut CraftApp, ui: &mut Ui, d: &Detected) {
         let pastable = d.needs_key || d.suggestion.base_url.as_deref().is_some_and(craft_anything_ai::openai::is_opencode_go);
         if pastable && !configured {
             ui.add_space(6.0);
+            let mut paste_clicked = false;
             ui.horizontal(|ui| {
                 let key = app.key_inputs.entry(name.clone()).or_default();
+                let field_w = (ui.available_width() - 170.0).max(110.0);
                 ui.add(
                     egui::TextEdit::singleline(key)
                         .password(true)
                         .hint_text(tr("Paste your API key (kept in your system keychain)"))
-                        .desired_width(ui.available_width() - 140.0)
+                        .desired_width(field_w)
                         .frame(widgets::text_field_frame(&t)),
                 );
-                let key = key.trim().to_string();
-                if widgets::primary_icon(ui, None, "Connect", !key.is_empty()).clicked() && !key.is_empty() {
+                if icons::button(ui, "clipboard-list", 28.0, false, "Paste API key").clicked() {
+                    paste_clicked = true;
+                }
+                let k = key.trim().to_string();
+                if widgets::primary_icon(ui, None, "Connect", !k.is_empty()).clicked() && !k.is_empty() {
                     // The key goes to the keychain; the app keeps no copy of it.
                     app.key_inputs.remove(&name);
-                    app.add_backend(d.suggestion.clone(), Some(key));
+                    app.add_backend(d.suggestion.clone(), Some(k));
                 }
             });
+            if paste_clicked {
+                app.paste_into(crate::state::PasteTarget::AiKey(name.clone()));
+            }
         }
     });
 }

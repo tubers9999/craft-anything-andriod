@@ -97,20 +97,31 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                 Modal::Website => {
                     ui.label(theme::heading(tr("Look at a website"), theme::SECTION));
                     ui.add_space(8.0);
-                    let r = ui.add(
-                        egui::TextEdit::singleline(&mut app.state.url_input)
-                            .hint_text("https://example.com")
-                            .desired_width(f32::INFINITY)
-                            .frame(widgets::text_field_frame(&t)),
-                    );
-                    widgets::named(r.clone(), "Website address");
-                    // Ready to type into as the dialog opens.
-                    let opened = egui::Id::new("website-dialog-focused");
-                    if !ui.data(|d| d.get_temp::<bool>(opened).unwrap_or(false)) {
-                        r.request_focus();
-                        ui.data_mut(|d| d.insert_temp(opened, true));
+                    let mut paste_clicked = false;
+                    let mut enter = false;
+                    ui.horizontal(|ui| {
+                        let field_w = (ui.available_width() - 44.0).max(120.0);
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut app.state.url_input)
+                                .hint_text("https://example.com")
+                                .desired_width(field_w)
+                                .frame(widgets::text_field_frame(&t)),
+                        );
+                        widgets::named(r.clone(), "Website address");
+                        // Ready to type into as the dialog opens.
+                        let opened = egui::Id::new("website-dialog-focused");
+                        if !ui.data(|d| d.get_temp::<bool>(opened).unwrap_or(false)) {
+                            r.request_focus();
+                            ui.data_mut(|d| d.insert_temp(opened, true));
+                        }
+                        enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        if icons::button(ui, "clipboard-list", 32.0, false, "Paste address").clicked() {
+                            paste_clicked = true;
+                        }
+                    });
+                    if paste_clicked {
+                        app.paste_into(crate::state::PasteTarget::WebsiteUrl);
                     }
-                    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {
                         let ok = !app.state.url_input.trim().is_empty();
@@ -180,6 +191,62 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                 Modal::PinDelete(root, id) => crate::pins::delete_modal(app, ui, root, *id, &mut close),
                 Modal::FilePicker { pick, current_dir, input_path } => {
                     file_picker_modal(app, ui, *pick, current_dir, input_path, &mut close);
+                }
+                Modal::PasteInput { target } => {
+                    let target = target.clone();
+                    ui.label(theme::heading(tr("Paste text"), theme::SECTION));
+                    ui.add_space(8.0);
+                    ui.label(RichText::new(tr("Paste or type your text below:")).color(t.text_dim));
+                    ui.add_space(8.0);
+                    let r = ui.add(
+                        egui::TextEdit::multiline(&mut app.state.paste_input)
+                            .desired_rows(3)
+                            .desired_width(ui.available_width())
+                            .frame(widgets::text_field_frame(&t)),
+                    );
+                    let opened = egui::Id::new("paste-input-focused");
+                    if !ui.data(|d| d.get_temp::<bool>(opened).unwrap_or(false)) {
+                        r.request_focus();
+                        ui.data_mut(|d| d.insert_temp(opened, true));
+                    }
+                    ui.add_space(12.0);
+                    ui.horizontal(|ui| {
+                        let ok = !app.state.paste_input.trim().is_empty();
+                        if widgets::primary_icon(ui, Some("clipboard"), "Insert", ok).clicked() && ok {
+                            let val = app.state.paste_input.trim().to_string();
+                            match target {
+                                crate::state::PasteTarget::WebsiteUrl => app.state.url_input = val,
+                                crate::state::PasteTarget::MakeUrl => app.state.make.url = val,
+                                crate::state::PasteTarget::ServerAddress => app.server_form.address = val,
+                                crate::state::PasteTarget::ServerKey => app.server_form.key = val,
+                                crate::state::PasteTarget::AiKey(name) => {
+                                    app.key_inputs.insert(name, val);
+                                }
+                                crate::state::PasteTarget::AssetKey(provider) => {
+                                    app.key_inputs.insert(provider, val);
+                                }
+                                crate::state::PasteTarget::Prompt => {
+                                    let field = if app.state.screen == crate::state::Screen::Home {
+                                        &mut app.state.make.request
+                                    } else if !app.state.input.is_empty() || app.state.screen == crate::state::Screen::Ask {
+                                        &mut app.state.input
+                                    } else {
+                                        &mut app.state.project_input
+                                    };
+                                    if !field.is_empty() && !field.ends_with(' ') && !field.ends_with('\n') {
+                                        field.push(' ');
+                                    }
+                                    field.push_str(&val);
+                                }
+                            }
+                            app.state.paste_input.clear();
+                            close = true;
+                        }
+                        if widgets::secondary(ui, None, "Cancel").clicked() {
+                            app.state.paste_input.clear();
+                            close = true;
+                        }
+                    });
                 }
                 Modal::About => {
                     ui.label(theme::heading("Craft Anything", theme::SECTION));

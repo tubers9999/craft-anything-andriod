@@ -260,6 +260,9 @@ fn request_box(app: &mut CraftApp, ui: &mut Ui, hint: &str, attach: Option<&str>
     if out.paste {
         app.paste_pictures(false);
     }
+    if out.paste_text {
+        app.paste_into(crate::state::PasteTarget::Prompt);
+    }
     out.send
 }
 
@@ -383,15 +386,25 @@ fn choose_target(app: &mut CraftApp, ui: &mut Ui) {
         ui.add_space(16.0);
         ui.label(RichText::new(tr("Type the website's address:")).size(theme::BODY).color(t.text_dim));
         ui.add_space(6.0);
-        let r = ui.add(
-            egui::TextEdit::singleline(&mut m.url)
-                .hint_text("example.com")
-                .desired_width(520.0)
-                .font(egui::FontId::proportional(theme::LEAD))
-                .frame(widgets::text_field_frame(&t).inner_margin(Margin::symmetric(14, 12))),
-        );
-        if pick == Some(0) {
-            r.request_focus();
+        let mut paste_url = false;
+        ui.horizontal(|ui| {
+            let field_w = (ui.available_width() - 44.0).min(520.0);
+            let r = ui.add(
+                egui::TextEdit::singleline(&mut m.url)
+                    .hint_text("example.com")
+                    .desired_width(field_w)
+                    .font(egui::FontId::proportional(theme::LEAD))
+                    .frame(widgets::text_field_frame(&t).inner_margin(Margin::symmetric(14, 12))),
+            );
+            if pick == Some(0) {
+                r.request_focus();
+            }
+            if icons::button(ui, "clipboard-list", 34.0, false, "Paste address").clicked() {
+                paste_url = true;
+            }
+        });
+        if paste_url {
+            app.paste_into(crate::state::PasteTarget::MakeUrl);
         }
         // Say what's wrong right under the field, once something has been typed.
         if let Some(problem) = url_problem(&m.url) {

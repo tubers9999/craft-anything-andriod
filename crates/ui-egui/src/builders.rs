@@ -393,7 +393,7 @@ pub fn built_by(app: &mut CraftApp, ui: &mut Ui) {
 /// again, and Settings for API keys. Never a dead end.
 pub fn need_builder_modal(app: &mut CraftApp, ui: &mut Ui, start: bool, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(520.0);
+    ui.set_width(ui.available_width().min(520.0));
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(48.0), egui::Sense::hover());
         ui.painter().rect_filled(rect, t.radius, t.accent_soft);

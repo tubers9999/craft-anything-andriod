@@ -19,10 +19,13 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
     let mut open = true;
     // A modal (dimmed backdrop, Esc or a click outside closes) with a full-size close button;
     // egui's window close box is 14 px.
+    let full_w = ctx.content_rect().width();
+    let is_mobile = full_w < 500.0;
+    let modal_w = (full_w - 20.0).min(680.0);
     let resp = egui::Modal::new(egui::Id::new("settings-window"))
-        .frame(egui::Frame::new().fill(t.card).corner_radius(t.r_lg()).inner_margin(egui::Margin::same(20)).stroke(egui::Stroke::new(1.0, t.card_border)))
+        .frame(egui::Frame::new().fill(t.card).corner_radius(t.r_lg()).inner_margin(egui::Margin::same(if is_mobile { 12 } else { 20 })).stroke(egui::Stroke::new(1.0, t.card_border)))
         .show(ctx, |ui| {
-            ui.set_width(680.0);
+            ui.set_width(modal_w);
             ui.horizontal(|ui| {
                 ui.label(theme::heading(tr("Settings"), theme::SECTION));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -43,64 +46,60 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                     }
                 });
             }
-            ui.add_space(12.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(150.0);
-                    for (tab, icon, title) in [
-                        (SettingsTab::General, "settings", "General"),
-                        (SettingsTab::Engines, "cpu", "Engines"),
-                        (SettingsTab::Ai, "bot", "AI"),
-                        (SettingsTab::Builds, "hammer", "Builds"),
-                        (SettingsTab::Plugins, "puzzle", "Plugins"),
-                        (SettingsTab::Safety, "shield", "Safety"),
-                    ] {
-                        let on = app.state.settings_tab == tab;
-                        let (rect, r) = ui.allocate_exact_size(Vec2::new(150.0, 34.0), egui::Sense::click());
-                        r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, on, tr(title)));
-                        if on {
-                            ui.painter().rect_filled(rect, t.radius, t.accent_soft);
-                        } else if r.hovered() {
-                            ui.painter().rect_filled(rect, t.radius, t.hover);
-                        }
-                        icons::paint(
-                            ui,
-                            egui::Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.center().y - 8.0), Vec2::splat(16.0)),
-                            icon,
-                            16.0,
-                            if on { t.accent_ink } else { t.icon },
-                        );
-                        ui.painter().text(
-                            egui::pos2(rect.left() + 36.0, rect.center().y),
-                            egui::Align2::LEFT_CENTER,
-                            tr(title),
-                            theme::medium(theme::SMALL),
-                            if on { t.text } else { t.text_dim },
-                        );
-                        if r.clicked() {
-                            app.state.settings_tab = tab;
-                            if tab == SettingsTab::Ai && app.detected.is_none() {
-                                app.detect_backends();
+            ui.add_space(if is_mobile { 6.0 } else { 12.0 });
+            if is_mobile {
+                egui::ScrollArea::horizontal().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for (tab, icon, title) in [
+                            (SettingsTab::General, "settings", "General"),
+                            (SettingsTab::Engines, "cpu", "Engines"),
+                            (SettingsTab::Ai, "bot", "AI"),
+                            (SettingsTab::Builds, "hammer", "Builds"),
+                            (SettingsTab::Plugins, "puzzle", "Plugins"),
+                            (SettingsTab::Safety, "shield", "Safety"),
+                        ] {
+                            let on = app.state.settings_tab == tab;
+                            let (rect, r) = ui.allocate_exact_size(Vec2::new(96.0, 32.0), egui::Sense::click());
+                            r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, on, tr(title)));
+                            if on {
+                                ui.painter().rect_filled(rect, t.radius, t.accent_soft);
+                            } else if r.hovered() {
+                                ui.painter().rect_filled(rect, t.radius, t.hover);
+                            }
+                            icons::paint(
+                                ui,
+                                egui::Rect::from_min_size(egui::pos2(rect.left() + 6.0, rect.center().y - 8.0), Vec2::splat(16.0)),
+                                icon,
+                                16.0,
+                                if on { t.accent_ink } else { t.icon },
+                            );
+                            ui.painter().text(
+                                egui::pos2(rect.left() + 26.0, rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                tr(title),
+                                theme::medium(theme::SMALL),
+                                if on { t.text } else { t.text_dim },
+                            );
+                            if r.clicked() {
+                                app.state.settings_tab = tab;
+                                if tab == SettingsTab::Ai && app.detected.is_none() {
+                                    app.detect_backends();
+                                }
                             }
                         }
-                    }
+                    });
                 });
+                ui.add_space(6.0);
                 ui.separator();
+                ui.add_space(6.0);
                 ui.vertical(|ui| {
-                    // Exactly what's left of the window, with room for the scroll bar a long tab
-                    // gets, so no tab can widen the window (#68).
                     let w = ui.available_width();
                     ui.set_width(w);
                     let content_w = w - ui.spacing().scroll.allocated_width();
-                    // As tall as the window allows, so a tab's settings aren't cut off at the fold.
-                    let h = (ctx.content_rect().height() - 220.0).clamp(280.0, 560.0);
-                    // Not shrunk to the tab's content: that gave each tab its own width and put the
-                    // scroll bar in a different place on every page.
+                    let h = (ctx.content_rect().height() - 190.0).clamp(240.0, 600.0);
                     let tab = app.state.settings_tab;
                     egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(h).max_height(h).max_width(w).show(ui, |ui| {
-                        // The bar sits at the edge of the area, so the air between it and the
-                        // settings is taken from the settings' side.
-                        ui.set_max_width(content_w - 14.0);
+                        ui.set_max_width(content_w - 6.0);
                         match tab {
                             SettingsTab::General => general(app, ui),
                             SettingsTab::Engines => engines(app, ui),
@@ -111,7 +110,72 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                         }
                     });
                 });
-            });
+            } else {
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(150.0);
+                        for (tab, icon, title) in [
+                            (SettingsTab::General, "settings", "General"),
+                            (SettingsTab::Engines, "cpu", "Engines"),
+                            (SettingsTab::Ai, "bot", "AI"),
+                            (SettingsTab::Builds, "hammer", "Builds"),
+                            (SettingsTab::Plugins, "puzzle", "Plugins"),
+                            (SettingsTab::Safety, "shield", "Safety"),
+                        ] {
+                            let on = app.state.settings_tab == tab;
+                            let (rect, r) = ui.allocate_exact_size(Vec2::new(150.0, 34.0), egui::Sense::click());
+                            r.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, on, tr(title)));
+                            if on {
+                                ui.painter().rect_filled(rect, t.radius, t.accent_soft);
+                            } else if r.hovered() {
+                                ui.painter().rect_filled(rect, t.radius, t.hover);
+                            }
+                            icons::paint(
+                                ui,
+                                egui::Rect::from_min_size(egui::pos2(rect.left() + 10.0, rect.center().y - 8.0), Vec2::splat(16.0)),
+                                icon,
+                                16.0,
+                                if on { t.accent_ink } else { t.icon },
+                            );
+                            ui.painter().text(
+                                egui::pos2(rect.left() + 36.0, rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                tr(title),
+                                theme::medium(theme::SMALL),
+                                if on { t.text } else { t.text_dim },
+                            );
+                            if r.clicked() {
+                                app.state.settings_tab = tab;
+                                if tab == SettingsTab::Ai && app.detected.is_none() {
+                                    app.detect_backends();
+                                }
+                            }
+                        }
+                    });
+                    ui.separator();
+                    ui.vertical(|ui| {
+                        // Exactly what's left of the window, with room for the scroll bar a long tab
+                        // gets, so no tab can widen the window (#68).
+                        let w = ui.available_width();
+                        ui.set_width(w);
+                        let content_w = w - ui.spacing().scroll.allocated_width();
+                        // As tall as the window allows, so a tab's settings aren't cut off at the fold.
+                        let h = (ctx.content_rect().height() - 220.0).clamp(280.0, 560.0);
+                        let tab = app.state.settings_tab;
+                        egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(h).max_height(h).max_width(w).show(ui, |ui| {
+                            ui.set_max_width(content_w - 14.0);
+                            match tab {
+                                SettingsTab::General => general(app, ui),
+                                SettingsTab::Engines => engines(app, ui),
+                                SettingsTab::Ai => ai(app, ui),
+                                SettingsTab::Builds => builds(app, ui),
+                                SettingsTab::Plugins => plugins(app, ui),
+                                SettingsTab::Safety => safety(app, ui),
+                            }
+                        });
+                    });
+                });
+            }
         });
     if !open || resp.should_close() {
         app.state.settings_open = false;
@@ -120,16 +184,27 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
 
 fn row(ui: &mut Ui, title: &str, sub: &str, add: impl FnOnce(&mut Ui)) {
     let t = Tokens::get(ui.ctx());
-    ui.horizontal(|ui| {
+    if ui.available_width() < 420.0 {
         ui.vertical(|ui| {
-            ui.set_width(220.0);
             ui.label(RichText::new(tr(title)).font(theme::medium(theme::SMALL)));
             if !sub.is_empty() {
                 ui.add(egui::Label::new(RichText::new(tr(sub)).color(t.text_faint).size(theme::CAPTION)).wrap());
             }
+            ui.add_space(4.0);
+            add(ui);
         });
-        add(ui);
-    });
+    } else {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(220.0);
+                ui.label(RichText::new(tr(title)).font(theme::medium(theme::SMALL)));
+                if !sub.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(tr(sub)).color(t.text_faint).size(theme::CAPTION)).wrap());
+                }
+            });
+            add(ui);
+        });
+    }
     ui.add_space(10.0);
 }
 
@@ -225,11 +300,12 @@ fn path_field(ui: &mut Ui, value: &mut Option<PathBuf>, name: &str, hint: &str) 
     let typed = ui.next_auto_id().with("typed");
     let shown = value.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
     let mut s = ui.data(|d| d.get_temp::<String>(typed)).unwrap_or(shown);
+    let mut pasted = false;
+    let field_w = (ui.available_width() - 44.0).clamp(100.0, 240.0);
     let r = ui.add(
         egui::TextEdit::singleline(&mut s)
             .hint_text(tr(hint))
-            // Up to 240, leaving room for a Choose… button after it, so a row never widens the window (#68).
-            .desired_width((ui.available_width() - 34.0).clamp(120.0, 240.0))
+            .desired_width(field_w)
             .font(theme::mono(12.0))
             .frame(widgets::text_field_frame_compact(&Tokens::get(ui.ctx()))),
     );
@@ -239,7 +315,13 @@ fn path_field(ui: &mut Ui, value: &mut Option<PathBuf>, name: &str, hint: &str) 
     } else {
         ui.data_mut(|d| d.remove::<String>(typed));
     }
-    if r.changed() {
+    if icons::button(ui, "clipboard-list", 22.0, false, "Paste path").clicked() {
+        if let Some(t) = crate::clipboard::get_text() {
+            s = t.trim().to_string();
+            pasted = true;
+        }
+    }
+    if r.changed() || pasted {
         *value = if s.trim().is_empty() { None } else { Some(PathBuf::from(s.trim())) };
         return true;
     }
@@ -721,22 +803,53 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
             // different key can be used without restarting the app.
             let pastable = d.needs_key || d.suggestion.base_url.as_deref().is_some_and(craft_anything_ai::openai::is_opencode_go);
             if pastable && !configured {
-                ui.horizontal(|ui| {
-                    let key = app.key_inputs.entry(d.suggestion.name.clone()).or_default();
-                    ui.add(
-                        egui::TextEdit::singleline(key)
-                            .password(true)
-                            .hint_text(tr("API key (stored in your system keychain)"))
-                            .desired_width(260.0)
-                            .frame(widgets::text_field_frame_compact(&Tokens::get(ui.ctx()))),
-                    );
-                    let k = key.trim().to_string();
-                    if widgets::primary_icon(ui, None, "Add", !k.is_empty()).clicked() && !k.is_empty() {
-                        // The key goes to the keychain; the app keeps no copy of it.
-                        app.key_inputs.remove(&d.suggestion.name);
-                        app.add_backend(d.suggestion.clone(), Some(k));
-                    }
-                });
+                let is_narrow = ui.available_width() < 420.0;
+                let mut paste_name = None;
+                if is_narrow {
+                    ui.vertical(|ui| {
+                        let key = app.key_inputs.entry(d.suggestion.name.clone()).or_default();
+                        ui.horizontal(|ui| {
+                            let field_w = (ui.available_width() - 36.0).max(100.0);
+                            ui.add(
+                                egui::TextEdit::singleline(key)
+                                    .password(true)
+                                    .hint_text(tr("API key"))
+                                    .desired_width(field_w)
+                                    .frame(widgets::text_field_frame_compact(&Tokens::get(ui.ctx()))),
+                            );
+                            if icons::button(ui, "clipboard-list", 26.0, false, "Paste API key").clicked() {
+                                paste_name = Some(d.suggestion.name.clone());
+                            }
+                        });
+                        let k = key.trim().to_string();
+                        if widgets::primary_icon(ui, None, "Add", !k.is_empty()).clicked() && !k.is_empty() {
+                            app.key_inputs.remove(&d.suggestion.name);
+                            app.add_backend(d.suggestion.clone(), Some(k));
+                        }
+                    });
+                } else {
+                    ui.horizontal(|ui| {
+                        let key = app.key_inputs.entry(d.suggestion.name.clone()).or_default();
+                        ui.add(
+                            egui::TextEdit::singleline(key)
+                                .password(true)
+                                .hint_text(tr("API key (stored in your system keychain)"))
+                                .desired_width(220.0)
+                                .frame(widgets::text_field_frame_compact(&Tokens::get(ui.ctx()))),
+                        );
+                        if icons::button(ui, "clipboard-list", 26.0, false, "Paste API key").clicked() {
+                            paste_name = Some(d.suggestion.name.clone());
+                        }
+                        let k = key.trim().to_string();
+                        if widgets::primary_icon(ui, None, "Add", !k.is_empty()).clicked() && !k.is_empty() {
+                            app.key_inputs.remove(&d.suggestion.name);
+                            app.add_backend(d.suggestion.clone(), Some(k));
+                        }
+                    });
+                }
+                if let Some(name) = paste_name {
+                    app.paste_into(crate::state::PasteTarget::AiKey(name));
+                }
             }
         });
         ui.add_space(6.0);
@@ -753,27 +866,75 @@ pub(crate) fn server_form(app: &mut CraftApp, ui: &mut Ui) {
     widgets::caption(ui, "Add an AI by its address");
     ui.label(RichText::new(tr("Ollama or LM Studio on another computer, or any service that speaks the OpenAI API.")).color(t.text_faint).size(theme::CAPTION));
     ui.add_space(4.0);
-    let form = &mut app.server_form;
-    // `width` is the text's; the compact frame adds 8 points a side and its border.
-    const FRAME: f32 = 18.0;
-    let field = |ui: &mut Ui, text: &mut String, hint: &str, width: f32, name: &str, secret: bool| {
-        let r = ui.add(egui::TextEdit::singleline(text).password(secret).hint_text(tr(hint)).desired_width(width).frame(widgets::text_field_frame_compact(&t)));
-        widgets::named(r, &tr(name));
-    };
-    ui.horizontal(|ui| {
-        field(ui, &mut form.name, "name, e.g. Studio box", 150.0, "AI name", false);
-        let w = ui.available_width() - FRAME;
-        field(ui, &mut form.address, "address, e.g. http://192.168.1.20:11434/v1", w, "Server address", false);
-    });
-    let ready = !form.name.trim().is_empty() && !form.address.trim().is_empty();
+    let is_mobile = ui.available_width() < 460.0;
+    let mut paste_target = None;
     let mut add = false;
-    ui.horizontal(|ui| {
-        field(ui, &mut form.model, "model (optional)", 150.0, "Model", false);
-        // Room for the Add button after it.
-        let w = (ui.available_width() - FRAME - 90.0).max(120.0);
-        field(ui, &mut form.key, "API key, if it needs one", w, "API key", true);
-        add = widgets::primary_icon(ui, Some("plus"), "Add", ready).clicked() && ready;
-    });
+
+    if is_mobile {
+        let form = &mut app.server_form;
+        ui.vertical(|ui| {
+            ui.label(RichText::new(tr("AI name")).size(theme::CAPTION).color(t.text_dim));
+            ui.add(egui::TextEdit::singleline(&mut form.name).hint_text(tr("name, e.g. Studio box")).desired_width(ui.available_width()).frame(widgets::text_field_frame_compact(&t)));
+            ui.add_space(4.0);
+
+            ui.label(RichText::new(tr("Server address")).size(theme::CAPTION).color(t.text_dim));
+            ui.horizontal(|ui| {
+                let w = (ui.available_width() - 36.0).max(100.0);
+                ui.add(egui::TextEdit::singleline(&mut form.address).hint_text("http://192.168.1.20:11434/v1").desired_width(w).frame(widgets::text_field_frame_compact(&t)));
+                if icons::button(ui, "clipboard-list", 28.0, false, "Paste address").clicked() {
+                    paste_target = Some(crate::state::PasteTarget::ServerAddress);
+                }
+            });
+            ui.add_space(4.0);
+
+            ui.label(RichText::new(tr("Model (optional)")).size(theme::CAPTION).color(t.text_dim));
+            ui.add(egui::TextEdit::singleline(&mut form.model).hint_text(tr("model (optional)")).desired_width(ui.available_width()).frame(widgets::text_field_frame_compact(&t)));
+            ui.add_space(4.0);
+
+            ui.label(RichText::new(tr("API key")).size(theme::CAPTION).color(t.text_dim));
+            ui.horizontal(|ui| {
+                let w = (ui.available_width() - 36.0).max(100.0);
+                ui.add(egui::TextEdit::singleline(&mut form.key).password(true).hint_text(tr("API key, if it needs one")).desired_width(w).frame(widgets::text_field_frame_compact(&t)));
+                if icons::button(ui, "clipboard-list", 28.0, false, "Paste API key").clicked() {
+                    paste_target = Some(crate::state::PasteTarget::ServerKey);
+                }
+            });
+            ui.add_space(8.0);
+
+            let ready = !form.name.trim().is_empty() && !form.address.trim().is_empty();
+            if widgets::primary_icon(ui, Some("plus"), "Add AI Server", ready).clicked() && ready {
+                add = true;
+            }
+        });
+    } else {
+        let form = &mut app.server_form;
+        const FRAME: f32 = 18.0;
+        let field = |ui: &mut Ui, text: &mut String, hint: &str, width: f32, name: &str, secret: bool| {
+            let r = ui.add(egui::TextEdit::singleline(text).password(secret).hint_text(tr(hint)).desired_width(width).frame(widgets::text_field_frame_compact(&t)));
+            widgets::named(r, &tr(name));
+        };
+        ui.horizontal(|ui| {
+            field(ui, &mut form.name, "name, e.g. Studio box", 140.0, "AI name", false);
+            let w = (ui.available_width() - FRAME - 36.0).max(120.0);
+            field(ui, &mut form.address, "address, e.g. http://192.168.1.20:11434/v1", w, "Server address", false);
+            if icons::button(ui, "clipboard-list", 26.0, false, "Paste address").clicked() {
+                paste_target = Some(crate::state::PasteTarget::ServerAddress);
+            }
+        });
+        let ready = !form.name.trim().is_empty() && !form.address.trim().is_empty();
+        ui.horizontal(|ui| {
+            field(ui, &mut form.model, "model (optional)", 140.0, "Model", false);
+            let w = (ui.available_width() - FRAME - 120.0).max(100.0);
+            field(ui, &mut form.key, "API key, if it needs one", w, "API key", true);
+            if icons::button(ui, "clipboard-list", 26.0, false, "Paste API key").clicked() {
+                paste_target = Some(crate::state::PasteTarget::ServerKey);
+            }
+            add = widgets::primary_icon(ui, Some("plus"), "Add", ready).clicked() && ready;
+        });
+    }
+    if let Some(target) = paste_target {
+        app.paste_into(target);
+    }
     if add {
         app.add_server();
     }

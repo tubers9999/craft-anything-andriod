@@ -1846,6 +1846,9 @@ fn composer(app: &mut CraftApp, ui: &mut Ui, width: f32, t: &Tokens) {
                 font_size: theme::BODY,
             },
         );
+        if out.paste_text {
+            app.paste_into(crate::state::PasteTarget::Prompt);
+        }
         // Like the x on a note: the last one waiting comes back into the box to be edited.
         if out.recall
             && let Some(note) = waiting.last()

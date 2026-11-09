@@ -350,6 +350,9 @@ fn composer(app: &mut CraftApp, ui: &mut Ui, width: f32, dense: bool) {
         if out.stop {
             app.stop();
         }
+        if out.paste_text {
+            app.paste_into(crate::state::PasteTarget::Prompt);
+        }
         // One answer at a time; what's typed meanwhile stays in the box.
         if out.send && !answering {
             let text = std::mem::take(&mut app.state.input);

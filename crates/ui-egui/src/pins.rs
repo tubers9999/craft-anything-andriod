@@ -236,14 +236,16 @@ fn megabytes(bytes: u64) -> String {
 /// Pin this build: a frozen copy (the default) or a light one, and a name.
 pub fn pin_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(560.0);
+    ui.set_width(ui.available_width().min(560.0));
     ui.label(theme::heading(tr("Pin this build"), theme::SECTION));
     ui.add_space(4.0);
     ui.add(egui::Label::new(RichText::new(tr("Keep it in the sidebar to open any time, whatever later builds change.")).color(t.text_dim)).wrap());
     ui.add_space(12.0);
-    let size = Vec2::new(268.0, 150.0);
+    let is_narrow = ui.available_width() < 480.0;
+    let tile_w = if is_narrow { ui.available_width() } else { ((ui.available_width() - 10.0) / 2.0).min(268.0) };
+    let size = Vec2::new(tile_w, if is_narrow { 120.0 } else { 150.0 });
     let mode = app.state.pin_draft.mode;
-    ui.horizontal(|ui| {
+    let mut draw_tiles = |ui: &mut Ui| {
         let frozen = widgets::choice_tile(
             ui,
             size,
@@ -254,6 +256,9 @@ pub fn pin_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         );
         if frozen.clicked() {
             app.state.pin_draft.mode = PinMode::Frozen;
+        }
+        if is_narrow {
+            ui.add_space(6.0);
         }
         let light = widgets::choice_tile(
             ui,
@@ -266,7 +271,12 @@ pub fn pin_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         if light.clicked() {
             app.state.pin_draft.mode = PinMode::Light;
         }
-    });
+    };
+    if is_narrow {
+        ui.vertical(draw_tiles);
+    } else {
+        ui.horizontal(draw_tiles);
+    }
     ui.add_space(8.0);
     let (note, color) = match &app.state.pin_draft.size {
         None => (tr("Working out how much space a copy takes…"), t.text_faint),

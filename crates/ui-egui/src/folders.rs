@@ -145,7 +145,7 @@ fn choose(app: &mut CraftApp, choice: ExistingFiles) {
 /// "This folder already has files": the app itself, or material to start from.
 pub fn existing_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let t = Tokens::get(ui.ctx());
-    ui.set_width(560.0);
+    ui.set_width(ui.available_width().min(560.0));
     let Some(folder) = app.state.make.folder.clone() else {
         *close = true;
         return;
@@ -160,9 +160,11 @@ pub fn existing_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     ui.label(RichText::new(tr("How should the builder use them?")).color(t.text));
     ui.add_space(12.0);
     let current = app.state.make.existing;
-    let size = Vec2::new(268.0, 168.0);
+    let is_narrow = ui.available_width() < 480.0;
+    let tile_w = if is_narrow { ui.available_width() } else { ((ui.available_width() - 10.0) / 2.0).min(268.0) };
+    let size = Vec2::new(tile_w, if is_narrow { 130.0 } else { 168.0 });
     let mut chosen = None;
-    ui.horizontal(|ui| {
+    let mut draw_tiles = |ui: &mut Ui| {
         let edit = widgets::choice_tile(
             ui,
             size,
@@ -173,6 +175,9 @@ pub fn existing_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         );
         if edit.clicked() {
             chosen = Some(ExistingFiles::Edit);
+        }
+        if is_narrow {
+            ui.add_space(6.0);
         }
         let start = widgets::choice_tile(
             ui,
@@ -185,7 +190,12 @@ pub fn existing_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         if start.clicked() {
             chosen = Some(ExistingFiles::StartFrom);
         }
-    });
+    };
+    if is_narrow {
+        ui.vertical(draw_tiles);
+    } else {
+        ui.horizontal(draw_tiles);
+    }
     ui.add_space(12.0);
     let mut remember = app.state.make.remember_existing;
     if widgets::toggle(ui, &mut remember, "Don't ask again (you can change this in Settings)").changed() {

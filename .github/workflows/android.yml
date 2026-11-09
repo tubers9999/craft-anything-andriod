@@ -121,15 +121,21 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.3-android
-          name: "Craft Anything Android v0.4.3 (RedGlitchX Edition)"
+          tag_name: v0.4.4-android
+          name: "Craft Anything Android v0.4.4 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.3)
+            ## 📱 Craft Anything Android APK (v0.4.4)
 
             Official automated Android release build by **RedGlitchX**.
+
+            ### 🚀 What's New in v0.4.4:
+            - **Portrait/Vertical Screen Support**: Redesigned Settings modal, modals, and Game Files mode with responsive layouts and top horizontal tabs so no screen rotation is required.
+            - **Clipboard & Direct Paste Buttons**: Added one-tap paste buttons next to Server Address endpoints, API Keys (OpenAI, Anthropic, Gemini, Groq, OpenRouter), Fal.ai keys, Website URLs, and the main Prompt input box.
+            - **Fallback Paste Dialog**: Included in-app modal paste input for Android environments where background clipboard access is restricted.
+            - **Game Mode Desktop Parity**: Polished Game Files and "Build with" engine choices for both wide/landscape and vertical/portrait screens.
 
             - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **Original Project:** ArtCraft Team & Craft Anything contributors

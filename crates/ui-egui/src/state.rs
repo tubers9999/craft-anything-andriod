@@ -395,6 +395,22 @@ pub enum Modal {
         current_dir: PathBuf,
         input_path: String,
     },
+    /// In-app fallback paste input modal when direct system clipboard access is restricted.
+    PasteInput {
+        target: PasteTarget,
+    },
+}
+
+/// Target destination for pasted text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PasteTarget {
+    WebsiteUrl,
+    MakeUrl,
+    ServerAddress,
+    ServerKey,
+    AiKey(String),
+    AssetKey(String),
+    Prompt,
 }
 
 /// The command palette.
@@ -438,6 +454,8 @@ pub struct UiState {
     pub settings_tab: SettingsTab,
     pub modal: Option<Modal>,
     pub url_input: String,
+    #[serde(default)]
+    pub paste_input: String,
     /// One-line message at the bottom of the window (errors and confirmations).
     /// Newest last: (text, is an error). Confirmations go after a few seconds; errors stay until
     /// dismissed, so a later message never hides one.
@@ -569,6 +587,7 @@ impl Default for UiState {
             settings_tab: SettingsTab::General,
             modal: None,
             url_input: String::new(),
+            paste_input: String::new(),
             toasts: Vec::new(),
             make: MakeDraft::default(),
             feed: Vec::new(),
