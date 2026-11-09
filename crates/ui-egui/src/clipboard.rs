@@ -50,7 +50,7 @@ fn get_termux_clipboard() -> Option<String> {
 
 /// Set plain text to the clipboard.
 pub fn set_text(ctx: &egui::Context, text: &str) {
-    ctx.output_mut(|o| o.copied_text = text.to_string());
+    ctx.copy_text(text.to_string());
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
     {
         if let Ok(mut cb) = Clipboard::new() {

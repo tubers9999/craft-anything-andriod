@@ -245,7 +245,7 @@ pub fn pin_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let tile_w = if is_narrow { ui.available_width() } else { ((ui.available_width() - 10.0) / 2.0).min(268.0) };
     let size = Vec2::new(tile_w, if is_narrow { 120.0 } else { 150.0 });
     let mode = app.state.pin_draft.mode;
-    let mut draw_tiles = |ui: &mut Ui| {
+    let draw_tiles = |ui: &mut Ui| {
         let frozen = widgets::choice_tile(
             ui,
             size,

@@ -370,17 +370,23 @@ fn choose_target(app: &mut CraftApp, ui: &mut Ui) {
         }
         None => {}
     }
-    let m = &mut app.state.make;
-    // Recomputed so the address field shows on the very frame "A website" is clicked.
-    let website = !matches!(m.target, TargetRef::Local { .. }) && (m.editing_url || !m.url.is_empty());
-    if let TargetRef::Local { path } = m.target.clone() {
+    let (website, path_label) = {
+        let m = &app.state.make;
+        let website = !matches!(m.target, TargetRef::Local { .. }) && (m.editing_url || !m.url.is_empty());
+        let path_label = if let TargetRef::Local { path } = &m.target {
+            Some((m.target.label(), crate::short_path(path)))
+        } else {
+            None
+        };
+        (website, path_label)
+    };
+    if let Some((name, short)) = path_label {
         ui.add_space(14.0);
         ui.horizontal(|ui| {
             ui.label(RichText::new(tr("You chose:")).size(theme::BODY).color(t.text_dim));
             // A long name (an APK from a mirror) is cut short, whole on hover, so the row never widens the page.
-            let name = m.target.label();
             ui.add(egui::Label::new(RichText::new(name.clone()).font(theme::semibold(theme::BODY))).truncate()).on_hover_text(name);
-            ui.add(egui::Label::new(RichText::new(crate::short_path(&path)).color(t.text_faint).size(theme::SMALL)).truncate());
+            ui.add(egui::Label::new(RichText::new(short).color(t.text_faint).size(theme::SMALL)).truncate());
         });
     } else if website {
         ui.add_space(16.0);
@@ -390,7 +396,7 @@ fn choose_target(app: &mut CraftApp, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let field_w = (ui.available_width() - 44.0).min(520.0);
             let r = ui.add(
-                egui::TextEdit::singleline(&mut m.url)
+                egui::TextEdit::singleline(&mut app.state.make.url)
                     .hint_text("example.com")
                     .desired_width(field_w)
                     .font(egui::FontId::proportional(theme::LEAD))
@@ -407,7 +413,7 @@ fn choose_target(app: &mut CraftApp, ui: &mut Ui) {
             app.paste_into(crate::state::PasteTarget::MakeUrl);
         }
         // Say what's wrong right under the field, once something has been typed.
-        if let Some(problem) = url_problem(&m.url) {
+        if let Some(problem) = url_problem(&app.state.make.url) {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 icons::show(ui, "triangle-alert", 16.0, t.danger);
@@ -432,7 +438,7 @@ fn look_inside(app: &mut CraftApp, ui: &mut Ui) {
     let tile_w = if single_col { ui.available_width() } else { ((ui.available_width() - gap) / 2.0).floor() };
     let size = Vec2::new(tile_w, if single_col { 66.0 } else { 72.0 });
     let mut pick = None;
-    let mut draw_tiles = |ui: &mut Ui, pick: &mut Option<bool>| {
+    let draw_tiles = |ui: &mut Ui, pick: &mut Option<bool>| {
         for (on, icon, label, blurb) in [
             (false, "shield-check", "Clean room", "Nothing inside it is read; Craft Anything works from what you can see. Your version gets its own art."),
             (true, "microscope", "Deep", "Craft Anything reads its code and files with every tool it has. For your private use."),

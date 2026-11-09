@@ -164,7 +164,7 @@ pub fn existing_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     let tile_w = if is_narrow { ui.available_width() } else { ((ui.available_width() - 10.0) / 2.0).min(268.0) };
     let size = Vec2::new(tile_w, if is_narrow { 130.0 } else { 168.0 });
     let mut chosen = None;
-    let mut draw_tiles = |ui: &mut Ui| {
+    let draw_tiles = |ui: &mut Ui| {
         let edit = widgets::choice_tile(
             ui,
             size,
