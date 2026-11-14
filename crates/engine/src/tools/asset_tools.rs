@@ -244,7 +244,7 @@ fn assets_image_generate(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput,
     let catalogue = Catalogue::built_in();
     let model_id = ctx.session.settings.assets.image_model.as_deref()
         .or_else(|| {
-            if j.keys.contains_key("custom") && !j.keys.contains_key("fal") {
+            if j.keys.get("custom").is_some() && j.keys.get("fal").is_none() {
                 Some("custom-api")
             } else {
                 None
@@ -285,7 +285,7 @@ fn assets_model_generate(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutput,
     if from_prompt {
         let image_model_id = ctx.session.settings.assets.image_model.as_deref()
             .or_else(|| {
-                if j.keys.contains_key("custom") && !j.keys.contains_key("fal") {
+                if j.keys.get("custom").is_some() && j.keys.get("fal").is_none() {
                     Some("custom-api")
                 } else {
                     None
