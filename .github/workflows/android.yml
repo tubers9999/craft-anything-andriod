@@ -4,6 +4,10 @@ on:
   push:
     branches: [ main ]
     tags: [ 'v*' ]
+    paths-ignore:
+      - 'README.md'
+      - 'RELEASE_NOTES.md'
+      - '.github/workflows/update-release.yml'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -148,8 +152,8 @@ jobs:
               - Attributed and copyrighted by **RedGlitchX (@tubers9999)**.
 
             > [!IMPORTANT]
-            > **NOTĂ INSTALARE / INSTALLATION NOTE:**
-            > Dacă ai instalată pe telefon o versiune anterioară (v0.4.8, v0.4.7 sau versiuni mai vechi), **dezinstalează mai întâi aplicația veche** înainte de a instala acest APK! Android blochează actualizările când se schimbă structura pachetului sau semnătura de instalare (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+            > **INSTALLATION NOTE:**
+            > If you have a previous version installed on your device (v0.4.8, v0.4.7, or earlier), **please uninstall the old app first** before installing this APK! Android blocks package updates when the package structure, native libraries, or signing certificate change (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
             - **Author & Copyright:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **License:** Dual-licensed MIT / Apache 2.0

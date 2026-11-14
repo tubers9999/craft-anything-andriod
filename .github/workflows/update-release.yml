@@ -1,0 +1,24 @@
+name: Update Release Notes
+
+on:
+  push:
+    paths:
+      - 'RELEASE_NOTES.md'
+      - '.github/workflows/update-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update Release Notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit v0.4.9-android -R ${{ github.repository }} --notes-file RELEASE_NOTES.md
