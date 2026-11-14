@@ -24,9 +24,20 @@ fn android_main(app: AndroidApp) {
             .with_tag("CraftAnything"),
     );
 
-    // Initialize ndk_context so JNI helpers (native Android clipboard, system services) can access the JavaVM and Activity.
-    unsafe {
-        ndk_context::initialize_android_context(app.vm_as_ptr().cast(), app.activity_as_ptr().cast());
+    std::panic::set_hook(Box::new(|info| {
+        log::error!("CRITICAL PANIC in Craft Anything: {info}");
+    }));
+
+    // Safely check if ndk_context was already initialized by android-activity (which it normally is in init.rs).
+    // If not, safely initialize it without triggering assert!(previous.is_none()).
+    let is_already_init = std::panic::catch_unwind(|| ndk_context::android_context()).is_ok();
+    if !is_already_init {
+        let _ = std::panic::catch_unwind(|| unsafe {
+            ndk_context::initialize_android_context(app.vm_as_ptr().cast(), app.activity_as_ptr().cast());
+        });
+        log::info!("ndk_context initialized");
+    } else {
+        log::info!("ndk_context already initialized by runtime");
     }
 
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));

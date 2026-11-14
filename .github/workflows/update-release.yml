@@ -21,4 +21,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit v0.4.9-android -R ${{ github.repository }} --notes-file RELEASE_NOTES.md
+          gh release edit v0.4.10-android -R ${{ github.repository }} --notes-file RELEASE_NOTES.md

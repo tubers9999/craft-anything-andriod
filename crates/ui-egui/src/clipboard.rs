@@ -35,13 +35,13 @@ pub fn get_text() -> Option<String> {
 
     #[cfg(target_os = "android")]
     {
-        if let Some(text) = get_android_clipboard() {
+        if let Ok(Some(text)) = std::panic::catch_unwind(|| get_android_clipboard()) {
             if !text.trim().is_empty() {
                 set_in_memory_clipboard(&text);
                 return Some(text);
             }
         }
-        if let Some(text) = get_termux_clipboard() {
+        if let Ok(Some(text)) = std::panic::catch_unwind(|| get_termux_clipboard()) {
             if !text.trim().is_empty() {
                 set_in_memory_clipboard(&text);
                 return Some(text);
@@ -268,7 +268,7 @@ pub fn set_text(ctx: &egui::Context, text: &str) {
     }
     #[cfg(target_os = "android")]
     {
-        set_android_clipboard(text);
+        let _ = std::panic::catch_unwind(|| set_android_clipboard(text));
         let _ = std::process::Command::new("/data/data/com.termux/files/usr/bin/termux-clipboard-set")
             .arg(text)
             .status();
