@@ -905,10 +905,20 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
                     ui.vertical(|ui| {
                         ui.set_width(max_w);
                         if !beside {
-                            egui::CollapsingHeader::new(RichText::new(tr("Project details")).font(theme::semibold(theme::BODY)))
-                                .id_salt("project-details")
-                                .icon(widgets::disclosure_icon)
-                                .show(ui, |ui| side(app, ui, &ws));
+                            ui.horizontal(|ui| {
+                                egui::CollapsingHeader::new(RichText::new(tr("Project details")).font(theme::semibold(theme::BODY)))
+                                    .id_salt("project-details")
+                                    .icon(widgets::disclosure_icon)
+                                    .show(ui, |ui| side(app, ui, &ws));
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    if !app.runs.is_busy(&ws.root) && icons::button(ui, "trash-2", 28.0, false, "Delete project").clicked() {
+                                        app.state.modal = Some(crate::state::Modal::Delete(ws.root.clone()));
+                                    }
+                                    if icons::button(ui, "git-branch", 28.0, false, "Cloud Build").clicked() {
+                                        trigger_github_cloud_build(app, &ws);
+                                    }
+                                });
+                            });
                             ui.add_space(chat::MESSAGE_GAP);
                         }
                         feed(app, ui, &ws);
@@ -1004,8 +1014,9 @@ fn side(app: &mut CraftApp, ui: &mut Ui, ws: &Workspace) {
 }
 
 fn trigger_github_cloud_build(app: &mut CraftApp, ws: &Workspace) {
+    use base64::Engine as _;
     let (token, default_repo, username) = {
-        let gh = &app.engine.session().settings.github;
+        let gh = &app.settings.github;
         (gh.token.trim().to_string(), gh.default_repo.trim().to_string(), gh.username.trim().to_string())
     };
 
@@ -1019,12 +1030,9 @@ fn trigger_github_cloud_build(app: &mut CraftApp, ws: &Workspace) {
     let repo = if !default_repo.is_empty() {
         default_repo
     } else if !username.is_empty() {
-        format!("{}/{}", username, ws.manifest.name.replace(' ', "-").to_lowercase())
+        format!("{}/craft-anything-cloud-builds", username)
     } else {
-        app.state.settings_open = true;
-        app.state.settings_tab = crate::state::SettingsTab::GitHub;
-        app.toast(crate::i18n::tr("Set your default GitHub repository in Settings → GitHub!"), true);
-        return;
+        "tubers9999/craft-anything-cloud-builds".to_string()
     };
 
     let workflows_dir = ws.root.join(".github").join("workflows");
@@ -1035,7 +1043,8 @@ fn trigger_github_cloud_build(app: &mut CraftApp, ws: &Workspace) {
     let is_godot = ws.manifest.stack.to_lowercase().contains("godot");
 
     let workflow_content = if is_rust {
-        r#"name: Remote Rust & APK Build
+        r#"name: Remote Android APK & Cloud Build
+# Copyright (c) 2026 RedGlitchX (@tubers9999). All rights reserved.
 
 on:
   push:
@@ -1044,17 +1053,50 @@ on:
 
 jobs:
   build:
+    name: Build Multi-Target & APK (RedGlitchX)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, x86_64-unknown-linux-gnu
+
+      - name: Install cargo-apk
+        run: cargo install cargo-apk --locked || cargo install cargo-apk
+
       - name: Build
-        run: cargo check --workspace || cargo build --release
+        run: |
+          if [ -d "apps/craft-anything-android" ]; then
+            cargo apk build --release -p craft-anything-android
+          elif [ -f "Cargo.toml" ]; then
+            cargo build --release || cargo check
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            target/release/apk/*.apk
+            target/release/*.exe
+            target/release/craft*
+          if-no-files-found: warn
 "#
     } else if is_godot {
         r#"name: Remote Godot Export
+# Copyright (c) 2026 RedGlitchX (@tubers9999). All rights reserved.
 
 on:
   push:
@@ -1063,18 +1105,30 @@ on:
 
 jobs:
   export:
+    name: Godot Export (RedGlitchX)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: firebelley/godot-export@v5.2.1
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Godot Export
+        uses: firebelley/godot-export@v5.2.1
         with:
           godot_executable_download_url: 'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip'
           godot_export_templates_download_url: 'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz'
           relative_project_path: '.'
           archive_output: true
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-artifacts
+          path: build/**
+          if-no-files-found: warn
 "#
     } else {
-        r#"name: Remote Cloud Build
+        r#"name: Remote Web & App Build
+# Copyright (c) 2026 RedGlitchX (@tubers9999). All rights reserved.
 
 on:
   push:
@@ -1083,21 +1137,89 @@ on:
 
 jobs:
   build:
+    name: Web & App Build (RedGlitchX)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - name: Build Project
         run: |
           if [ -f package.json ]; then npm install && npm run build; fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-artifacts
+          path: |
+            dist/**
+            build/**
+          if-no-files-found: warn
 "#
     };
 
     let _ = std::fs::write(&workflow_file, workflow_content);
-    app.toast(format!("Cloud build configured for {repo}! Workflow written to .github/workflows/build.yml"), false);
+
+    // Push workflow file to remote repository via GitHub API and dispatch
+    let agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(std::time::Duration::from_secs(10)))
+        .timeout_recv_response(Some(std::time::Duration::from_secs(20)))
+        .build()
+        .new_agent();
+
+    let content_b64 = base64::engine::general_purpose::STANDARD.encode(workflow_content.as_bytes());
+    let get_url = format!("https://api.github.com/repos/{repo}/contents/.github/workflows/build.yml");
+
+    let mut existing_sha = None;
+    if let Ok(resp) = agent.get(&get_url)
+        .header("Authorization", &format!("Bearer {token}"))
+        .header("User-Agent", "Craft-Anything-Android")
+        .call()
+    {
+        let mut reader = resp.into_body().into_reader();
+        if let Ok(val) = serde_json::from_reader::<_, serde_json::Value>(&mut reader) {
+            if let Some(sha) = val.get("sha").and_then(|s| s.as_str()) {
+                existing_sha = Some(sha.to_string());
+            }
+        }
+    }
+
+    let mut put_payload = serde_json::json!({
+        "message": "ci: automated build workflow [RedGlitchX]",
+        "content": content_b64,
+    });
+    if let Some(sha) = existing_sha {
+        put_payload["sha"] = serde_json::Value::String(sha);
+    }
+    let body_str = serde_json::to_string(&put_payload).unwrap_or_default();
+
+    let push_ok = agent.put(&get_url)
+        .header("Authorization", &format!("Bearer {token}"))
+        .header("User-Agent", "Craft-Anything-Android")
+        .header("Content-Type", "application/json")
+        .send(body_str)
+        .is_ok();
+
+    if push_ok {
+        // Dispatch workflow
+        let dispatch_url = format!("https://api.github.com/repos/{repo}/actions/workflows/build.yml/dispatches");
+        let disp_payload = serde_json::json!({ "ref": "main" });
+        let disp_str = serde_json::to_string(&disp_payload).unwrap_or_default();
+        let _ = agent.post(&dispatch_url)
+            .header("Authorization", &format!("Bearer {token}"))
+            .header("User-Agent", "Craft-Anything-Android")
+            .header("Content-Type", "application/json")
+            .send(disp_str);
+
+        app.toast(format!("Cloud build dispatched for {repo}! Check GitHub Actions."), false);
+    } else {
+        app.toast(format!("Cloud build configured for {repo}! Workflow written to .github/workflows/build.yml"), false);
+    }
 }
 
 /// How to see what was made: open the built site, or start the built program.

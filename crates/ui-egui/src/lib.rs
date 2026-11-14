@@ -761,10 +761,12 @@ impl CraftApp {
                 self.key_inputs.insert(provider, val);
             }
             crate::state::PasteTarget::GitHubToken => {
+                self.settings.github.token = val.clone();
                 self.engine.session().settings.github.token = val;
                 self.settings_changed();
             }
             crate::state::PasteTarget::GitHubRepo => {
+                self.settings.github.default_repo = val.clone();
                 self.engine.session().settings.github.default_repo = val;
                 self.settings_changed();
             }

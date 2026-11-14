@@ -21,7 +21,8 @@
             android:name="android.app.NativeActivity"
             android:label="Craft Anything"
             android:screenOrientation="fullUser"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|navigation"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:windowSoftInputMode="adjustResize|stateHidden"
             android:exported="true">
             <meta-data
                 android:name="android.app.lib_name"

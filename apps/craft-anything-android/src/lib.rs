@@ -24,6 +24,11 @@ fn android_main(app: AndroidApp) {
             .with_tag("CraftAnything"),
     );
 
+    // Initialize ndk_context so JNI helpers (native Android clipboard, system services) can access the JavaVM and Activity.
+    unsafe {
+        ndk_context::initialize_android_context(app.vm_as_raw().cast(), app.activity_as_ptr().cast());
+    }
+
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));
 
     // Set internal app directory as working directory and HOME so settings and databases persist properly

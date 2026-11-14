@@ -143,6 +143,7 @@ pub struct GitHubSettings {
     pub token: String,
     pub username: String,
     pub default_repo: String,
+    pub is_private: bool,
 }
 
 /// How builds are checked and when refining stops.

@@ -2,7 +2,7 @@
 name = "craft-anything-android"
 description = "Craft Anything Android APK runner by RedGlitchX"
 authors = ["RedGlitchX <tubers9999@users.noreply.github.com>"]
-version = "0.4.7"
+version = "0.4.8"
 edition.workspace = true
 license.workspace = true
 publish = false
@@ -24,6 +24,7 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-nativ
 winit = { version = "0.30", features = ["android-native-activity"] }
 log = { workspace = true }
 android_logger = "0.14"
+ndk-context = "0.1"
 
 [package.metadata.android]
 package = "ai.storyteller.craftanything"

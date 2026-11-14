@@ -222,6 +222,13 @@ pub fn show(app: &mut CraftApp, ui: &mut Ui) {
                 if icons::button(ui, "settings", CONTROL * s, app.state.settings_open, "Settings").clicked() {
                     app.state.settings_open = !app.state.settings_open;
                 }
+                if app.state.screen == Screen::Ask && !app.state.chat.is_empty() {
+                    if icons::button(ui, "trash-2", CONTROL * s, false, "Clear chat").clicked() {
+                        app.state.chat.clear();
+                        app.state.input.clear();
+                        app.toast(crate::i18n::tr("Chat cleared"), false);
+                    }
+                }
                 deep_toggle(app, ui);
                 if app.jobs.busy() {
                     let n = app.jobs.running().filter(|j| j.visible).count();

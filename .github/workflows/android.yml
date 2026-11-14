@@ -121,36 +121,35 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.7-android
-          name: "Craft Anything Android v0.4.7 (RedGlitchX Edition)"
+          tag_name: v0.4.8-android
+          name: "Craft Anything Android v0.4.8 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.7)
+            ## 📱 Craft Anything Android APK (v0.4.8)
 
             Official automated Android release build by **RedGlitchX**.
 
-            ### 🚀 What's New in v0.4.7:
-            - **Mobile Web Engine & Website Inspection Fix**:
-              - Fixed the critical "no website is open" bug on Android. The session now properly maintains active mobile browser sessions without requiring desktop Chromium CDP endpoints.
-              - `web_site_capture` on mobile now extracts HTML, headings, links, forms, and outline directly via HTTP/ureq, enabling full website rebuilding on Android.
-            - **Universal Mobile Clipboard & Non-Destructive Paste**:
-              - Added an in-memory cross-field clipboard buffer and restored the fallback paste modal without losing active modal views (Settings, Assets, AI forms).
-              - Paste buttons now work reliably across prompt box, API keys, and endpoint fields.
-            - **GitHub & Remote Cloud Builds (APK / EXE / Web / Game)**:
-              - Added a dedicated **GitHub** tab in Settings to connect your GitHub account via Personal Access Token and default repository, with live token verification.
-              - Added a **Cloud Build (GitHub)** action button in projects to scaffold and trigger remote GitHub Actions workflows for building Android APKs, Windows EXEs, and Web exports in the cloud.
-            - **Chat & Project Management**:
-              - Added a **Clear chat** button in the Ask conversation view to easily delete chat history and start fresh.
-              - Added direct **Delete** and **Duplicate** buttons right on the project card header.
-            - **Custom AI Server & Agent Flexibility**:
-              - Allowed adding custom AI endpoints and local servers (Ollama, LM Studio, vLLM, OpenAI proxies) without failing if the server's `/v1/models` endpoint is restricted or missing.
-            - **Ghidra Mobile Bypass**:
-              - Eliminated desktop Ghidra missing modals on Android; automatically routes binary analysis through the built-in mobile formats engine.
+            ### 🚀 What's New in v0.4.8:
+            - **Native Android JNI Clipboard (Direct System Copy/Paste)**:
+              - Full native JNI integration with Android's system `ClipboardManager` via `ndk-context` and `android-activity`.
+              - Pasting text copied from external apps (Chrome, GitHub, Notes) works seamlessly in all fields (Prompt box, API keys, AI server endpoints, GitHub PAT).
+            - **Soft Keyboard Overlap & Layout Fix (`adjustResize`)**:
+              - Added `android:windowSoftInputMode="adjustResize|stateHidden"` to `AndroidManifest.xml`.
+              - When the Android soft keyboard appears, the viewport smoothly resizes to keep active text edit controls fully visible without clipping or defocusing.
+            - **Settings Modal Responsive Overhaul**:
+              - Eliminated hardcoded scroll clamps and height overflow bugs that broke scrolling on mobile portrait screens.
+              - The Settings modal now dynamically scales and scrolls cleanly on any mobile screen.
+            - **Dedicated Private Cloud Build Repo & Copyright**:
+              - Added one-click creation and linking of a private GitHub build repository (`craft-anything-cloud-builds`) in Settings.
+              - Automated remote Android APK builds, keystore generation, and signing via GitHub Actions.
+              - All cloud build workflows, manifests, and binaries are explicitly attributed to and copyrighted by **RedGlitchX (@tubers9999)**.
+            - **Mobile Project & Chat Management**:
+              - Added direct project deletion, rename, and cloud build triggers on mobile project cards without needing desktop right-click.
+              - Accessible conversation clearing directly in chat.
 
-            - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
-            - **Original Project:** ArtCraft Team & Craft Anything contributors
+            - **Author & Copyright:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **License:** Dual-licensed MIT / Apache 2.0
             - **Target Architecture:** `aarch64-linux-android` (ARM64)
             - **Min Android SDK:** Android 8.0+ (API 26)
@@ -158,6 +157,6 @@ jobs:
             - **Alignment:** 4-byte page aligned (zipalign)
 
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.7-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.8-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

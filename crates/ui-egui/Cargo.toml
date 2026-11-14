@@ -26,6 +26,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 ureq = "3"
+base64 = "0.22"
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 # Native open/save dialogs, always shown from a worker thread (never blocks a frame).
@@ -41,6 +42,8 @@ eframe = { workspace = true, features = ["accesskit"] }
 [target.'cfg(target_os = "android")'.dependencies]
 pollster = "0.4"
 sys-locale = "0.3.2"
+jni = "0.22"
+ndk-context = "0.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The system menu bar (a safe API over AppKit); MIT OR Apache-2.0.

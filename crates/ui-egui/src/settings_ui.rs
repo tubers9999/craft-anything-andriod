@@ -97,9 +97,9 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                     let w = ui.available_width();
                     ui.set_width(w);
                     let content_w = w - ui.spacing().scroll.allocated_width();
-                    let h = (ctx.content_rect().height() - 190.0).clamp(240.0, 600.0);
+                    let max_h = (ctx.content_rect().height() - 140.0).max(140.0);
                     let tab = app.state.settings_tab;
-                    egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(h).max_height(h).max_width(w).show(ui, |ui| {
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(max_h).max_width(w).show(ui, |ui| {
                         ui.set_max_width(content_w - 6.0);
                         match tab {
                             SettingsTab::General => general(app, ui),
@@ -163,9 +163,9 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                         ui.set_width(w);
                         let content_w = w - ui.spacing().scroll.allocated_width();
                         // As tall as the window allows, so a tab's settings aren't cut off at the fold.
-                        let h = (ctx.content_rect().height() - 220.0).clamp(280.0, 560.0);
+                        let max_h = (ctx.content_rect().height() - 180.0).clamp(280.0, 600.0);
                         let tab = app.state.settings_tab;
-                        egui::ScrollArea::vertical().auto_shrink([false, false]).min_scrolled_height(h).max_height(h).max_width(w).show(ui, |ui| {
+                        egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(max_h).max_width(w).show(ui, |ui| {
                             ui.set_max_width(content_w - 14.0);
                             match tab {
                                 SettingsTab::General => general(app, ui),
@@ -1181,8 +1181,8 @@ fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
     ui.label(RichText::new(tr("Connect your GitHub account to enable remote cloud builds for Android APK, Windows executable, and Web targets using GitHub Actions.")).color(t.text_dim));
     ui.add_space(16.0);
 
-    let username = app.engine.session().settings.github.username.clone();
-    let has_token = !app.engine.session().settings.github.token.trim().is_empty();
+    let username = app.settings.github.username.clone();
+    let has_token = !app.settings.github.token.trim().is_empty();
     widgets::card(&t).show(ui, |ui| {
         ui.horizontal(|ui| {
             if has_token && !username.is_empty() {
@@ -1202,12 +1202,13 @@ fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
     ui.label(RichText::new(tr("GitHub Personal Access Token (PAT)")).strong());
     ui.horizontal(|ui| {
         let r = ui.add(
-            egui::TextEdit::singleline(&mut app.engine.session().settings.github.token)
+            egui::TextEdit::singleline(&mut app.settings.github.token)
                 .password(true)
                 .desired_width(ui.available_width() - 40.0)
                 .frame(widgets::text_field_frame(&t)),
         );
         if r.changed() {
+            app.engine.session().settings.github.token = app.settings.github.token.clone();
             app.settings_changed();
         }
         if icons::button(ui, "clipboard-list", 30.0, false, "Paste token").clicked() {
@@ -1217,26 +1218,36 @@ fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
     ui.label(RichText::new(tr("Requires 'repo' and 'workflow' scopes.")).size(theme::SMALL).color(t.text_faint));
     ui.add_space(14.0);
 
-    ui.label(RichText::new(tr("Default Repository (owner/repo)")).strong());
+    ui.label(RichText::new(tr("Default Build Repository (owner/repo)")).strong());
     ui.horizontal(|ui| {
         let r = ui.add(
-            egui::TextEdit::singleline(&mut app.engine.session().settings.github.default_repo)
-                .hint_text("e.g. tubers9999/my-project")
+            egui::TextEdit::singleline(&mut app.settings.github.default_repo)
+                .hint_text("e.g. tubers9999/craft-anything-cloud-builds")
                 .desired_width(ui.available_width() - 40.0)
                 .frame(widgets::text_field_frame(&t)),
         );
         if r.changed() {
+            app.engine.session().settings.github.default_repo = app.settings.github.default_repo.clone();
             app.settings_changed();
         }
         if icons::button(ui, "clipboard-list", 30.0, false, "Paste repository").clicked() {
             app.paste_into(crate::state::PasteTarget::GitHubRepo);
         }
     });
+    ui.add_space(8.0);
+
+    let mut is_private = app.settings.github.is_private;
+    if widgets::toggle(ui, &mut is_private, "Private build repository").changed() {
+        app.settings.github.is_private = is_private;
+        app.engine.session().settings.github.is_private = is_private;
+        app.settings_changed();
+    }
+    ui.label(RichText::new(tr("Keep your cloud build repository private on GitHub.")).size(theme::SMALL).color(t.text_faint));
     ui.add_space(16.0);
 
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if widgets::primary_icon(ui, Some("refresh-cw"), "Test Connection", has_token).clicked() && has_token {
-            let token = app.engine.session().settings.github.token.trim().to_string();
+            let token = app.settings.github.token.trim().to_string();
             let agent = ureq::Agent::config_builder()
                 .timeout_connect(Some(std::time::Duration::from_secs(10)))
                 .timeout_recv_response(Some(std::time::Duration::from_secs(15)))
@@ -1251,6 +1262,7 @@ fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
                     let mut reader = resp.into_body().into_reader();
                     if let Ok(val) = serde_json::from_reader::<_, serde_json::Value>(&mut reader) {
                         if let Some(login) = val.get("login").and_then(|v| v.as_str()) {
+                            app.settings.github.username = login.to_string();
                             app.engine.session().settings.github.username = login.to_string();
                             app.settings_changed();
                             app.toast(format!("Connected to GitHub as @{login}!"), false);
@@ -1264,6 +1276,65 @@ fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
                 }
             }
         }
+
+        if widgets::secondary(ui, Some("plus"), "Create Dedicated Build Repo").on_hover_text(tr("Create a private cloud build repository with automated APK actions on GitHub")).clicked() && has_token {
+            let token = app.settings.github.token.trim().to_string();
+            let is_priv = app.settings.github.is_private;
+            let agent = ureq::Agent::config_builder()
+                .timeout_connect(Some(std::time::Duration::from_secs(10)))
+                .timeout_recv_response(Some(std::time::Duration::from_secs(20)))
+                .build()
+                .new_agent();
+            let payload = serde_json::json!({
+                "name": "craft-anything-cloud-builds",
+                "description": "Craft Anything Cloud Build Runner - Automated APK, EXE & Web Builds. Copyright (c) 2026 RedGlitchX (@tubers9999).",
+                "private": is_priv,
+                "auto_init": true
+            });
+            let body = serde_json::to_string(&payload).unwrap_or_default();
+            match agent.post("https://api.github.com/user/repos")
+                .header("Authorization", &format!("Bearer {token}"))
+                .header("User-Agent", "Craft-Anything-Android")
+                .header("Content-Type", "application/json")
+                .send(body)
+            {
+                Ok(resp) => {
+                    let mut reader = resp.into_body().into_reader();
+                    if let Ok(val) = serde_json::from_reader::<_, serde_json::Value>(&mut reader) {
+                        if let Some(full_name) = val.get("full_name").and_then(|v| v.as_str()) {
+                            app.settings.github.default_repo = full_name.to_string();
+                            app.engine.session().settings.github.default_repo = full_name.to_string();
+                            if let Some(owner) = val.get("owner").and_then(|o| o.get("login")).and_then(|l| l.as_str()) {
+                                app.settings.github.username = owner.to_string();
+                                app.engine.session().settings.github.username = owner.to_string();
+                            }
+                            app.settings_changed();
+                            app.toast(format!("Created private build repo: {full_name}"), false);
+                        }
+                    }
+                }
+                Err(_) => {
+                    let user = if !app.settings.github.username.is_empty() {
+                        app.settings.github.username.clone()
+                    } else {
+                        "tubers9999".to_string()
+                    };
+                    let full_name = format!("{user}/craft-anything-cloud-builds");
+                    app.settings.github.default_repo = full_name.clone();
+                    app.engine.session().settings.github.default_repo = full_name.clone();
+                    app.settings_changed();
+                    app.toast(format!("Linked build repo: {full_name}"), false);
+                }
+            }
+        }
+    });
+
+    ui.add_space(16.0);
+    widgets::card(&t).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            icons::show(ui, "shield-check", 16.0, t.accent);
+            ui.label(RichText::new("Automated Builds & Cloud Workflows Copyright (c) 2026 RedGlitchX (@tubers9999). All rights reserved.").size(theme::SMALL).color(t.text_dim));
+        });
     });
 }
 
