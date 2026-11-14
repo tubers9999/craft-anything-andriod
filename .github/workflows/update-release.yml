@@ -21,4 +21,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit v0.4.10-android -R ${{ github.repository }} --notes-file RELEASE_NOTES.md
+          TAG=$(gh release list -R ${{ github.repository }} --limit 1 | awk '{print $1}')
+          if [ -n "$TAG" ]; then
+            echo "Updating release $TAG with RELEASE_NOTES.md"
+            gh release edit "$TAG" -R ${{ github.repository }} --notes-file RELEASE_NOTES.md
+          fi

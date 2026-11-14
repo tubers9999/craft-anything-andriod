@@ -40,6 +40,11 @@ fn android_main(app: AndroidApp) {
         log::info!("ndk_context already initialized by runtime");
     }
 
+    // Register active NativeActivity pointer for direct clipboard operations
+    let act_ptr = app.activity_as_ptr() as usize;
+    craft_anything_ui_egui::clipboard::set_android_activity(act_ptr);
+    log::info!("Stored Android NativeActivity reference for JNI clipboard access");
+
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));
 
     // Set internal app directory as working directory and HOME so settings and databases persist properly

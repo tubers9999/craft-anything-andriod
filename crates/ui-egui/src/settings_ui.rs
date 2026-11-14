@@ -97,7 +97,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                     let w = ui.available_width();
                     ui.set_width(w);
                     let content_w = w - ui.spacing().scroll.allocated_width();
-                    let max_h = (ctx.content_rect().height() - 140.0).max(140.0);
+                    let max_h = (ctx.content_rect().height() - 110.0).max(180.0);
                     let tab = app.state.settings_tab;
                     egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(max_h).max_width(w).show(ui, |ui| {
                         ui.set_max_width(content_w - 6.0);
@@ -181,7 +181,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                 });
             }
         });
-    if !open || resp.should_close() {
+    if !open || (!is_mobile && resp.should_close()) {
         app.state.settings_open = false;
     }
 }

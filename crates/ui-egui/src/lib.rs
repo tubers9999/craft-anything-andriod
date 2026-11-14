@@ -791,8 +791,14 @@ impl CraftApp {
     pub fn paste_into(&mut self, target: crate::state::PasteTarget) {
         if let Some(text) = crate::clipboard::get_text() {
             let val = text.trim().to_string();
-            self.apply_pasted_val(target, val);
-            self.toast(crate::i18n::tr("Pasted from clipboard"), false);
+            if !val.is_empty() {
+                self.apply_pasted_val(target, val);
+                self.toast(crate::i18n::tr("Pasted from clipboard"), false);
+                return;
+            }
+        }
+        if self.state.settings_open {
+            self.toast(crate::i18n::tr("Clipboard is empty. Copy text first or type directly."), true);
         } else {
             let return_to = self.state.modal.take().map(Box::new);
             self.state.paste_input.clear();

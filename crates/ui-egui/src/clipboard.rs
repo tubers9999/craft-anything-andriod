@@ -3,6 +3,7 @@
 use std::sync::Mutex;
 
 static IN_MEMORY_CLIPBOARD: Mutex<Option<String>> = Mutex::new(None);
+static ANDROID_ACTIVITY: Mutex<Option<usize>> = Mutex::new(None);
 
 /// Set text in the internal application clipboard cache.
 pub fn set_in_memory_clipboard(text: &str) {
@@ -14,6 +15,18 @@ pub fn set_in_memory_clipboard(text: &str) {
 /// Get text from the internal application clipboard cache.
 pub fn get_in_memory_clipboard() -> Option<String> {
     IN_MEMORY_CLIPBOARD.lock().ok().and_then(|g| g.clone()).filter(|s| !s.trim().is_empty())
+}
+
+/// Store the pointer to the Android NativeActivity jobject for direct JNI clipboard access.
+pub fn set_android_activity(ptr: usize) {
+    if let Ok(mut g) = ANDROID_ACTIVITY.lock() {
+        *g = Some(ptr);
+    }
+}
+
+/// Get the pointer to the Android NativeActivity jobject if available.
+pub fn get_android_activity() -> Option<usize> {
+    ANDROID_ACTIVITY.lock().ok().and_then(|g| *g)
 }
 
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
@@ -60,115 +73,155 @@ fn get_android_clipboard() -> Option<String> {
         Err(_) => return None,
     };
     let vm_ptr = ctx.vm();
-    let activity_ptr = ctx.context();
-    if vm_ptr.is_null() || activity_ptr.is_null() {
+    if vm_ptr.is_null() {
         return None;
     }
     unsafe {
         let vm = jni::JavaVM::from_raw(vm_ptr as *mut jni::sys::JavaVM).ok()?;
-        let mut env = vm.attach_current_thread().ok()?;
+        let mut env = match vm.get_env() {
+            Ok(e) => e,
+            Err(_) => vm.attach_current_thread_permanently().ok()?,
+        };
+
+        if env.exception_check().unwrap_or(false) {
+            let _ = env.exception_clear();
+        }
 
         if let Ok(looper_class) = env.find_class("android/os/Looper") {
             let my_looper = env.call_static_method(&looper_class, "myLooper", "()Landroid/os/Looper;", &[]);
-            if let Ok(val) = my_looper {
-                if val.l().map_or(true, |obj| obj.is_null()) {
-                    let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
-                }
+            let needs_prepare = match my_looper {
+                Ok(val) => val.l().map_or(true, |obj| obj.is_null()),
+                Err(_) => true,
+            };
+            if needs_prepare {
+                let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
             }
         }
         if env.exception_check().unwrap_or(false) {
             let _ = env.exception_clear();
         }
 
-        let service_name = env.new_string("clipboard").ok()?;
-        let activity = jni::objects::JObject::from_raw(activity_ptr as jni::sys::jobject);
-        let cm = env
-            .call_method(
-                &activity,
+        let Ok(service_name) = env.new_string("clipboard") else { return None };
+
+        let mut contexts = Vec::new();
+        if let Some(act_ptr) = get_android_activity() {
+            if act_ptr != 0 {
+                contexts.push(jni::objects::JObject::from_raw(act_ptr as jni::sys::jobject));
+            }
+        }
+        let app_ptr = ctx.context();
+        if !app_ptr.is_null() {
+            contexts.push(jni::objects::JObject::from_raw(app_ptr as jni::sys::jobject));
+        }
+
+        for context_obj in contexts {
+            let cm = env.call_method(
+                &context_obj,
                 "getSystemService",
                 "(Ljava/lang/String;)Ljava/lang/Object;",
                 &[jni::objects::JValue::Object(&service_name)],
-            )
-            .ok()?
-            .l()
-            .ok()?;
+            );
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                continue;
+            }
+            let Ok(cm_val) = cm.and_then(|v| v.l()) else {
+                continue;
+            };
+            if cm_val.is_null() {
+                continue;
+            }
 
-        if cm.is_null() {
-            return None;
-        }
+            // Attempt getPrimaryClip directly
+            let clip = env.call_method(&cm_val, "getPrimaryClip", "()Landroid/content/ClipData;", &[]);
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                continue;
+            }
+            let Ok(clip_val) = clip.and_then(|v| v.l()) else {
+                continue;
+            };
+            if clip_val.is_null() {
+                continue;
+            }
 
-        let has_clip = env
-            .call_method(&cm, "hasPrimaryClip", "()Z", &[])
-            .ok()?
-            .z()
-            .ok()?;
+            let count = env
+                .call_method(&clip_val, "getItemCount", "()I", &[])
+                .ok()
+                .and_then(|v| v.i().ok())
+                .unwrap_or(0);
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            }
+            if count <= 0 {
+                continue;
+            }
 
-        if !has_clip {
-            return None;
-        }
-
-        let clip = env
-            .call_method(&cm, "getPrimaryClip", "()Landroid/content/ClipData;", &[])
-            .ok()?
-            .l()
-            .ok()?;
-
-        if clip.is_null() {
-            return None;
-        }
-
-        let count = env
-            .call_method(&clip, "getItemCount", "()I", &[])
-            .ok()?
-            .i()
-            .ok()?;
-
-        if count <= 0 {
-            return None;
-        }
-
-        let item = env
-            .call_method(
-                &clip,
+            let item = env.call_method(
+                &clip_val,
                 "getItemAt",
                 "(I)Landroid/content/ClipData$Item;",
                 &[jni::objects::JValue::Int(0)],
-            )
-            .ok()?
-            .l()
-            .ok()?;
+            );
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                continue;
+            }
+            let Ok(item_val) = item.and_then(|v| v.l()) else {
+                continue;
+            };
+            if item_val.is_null() {
+                continue;
+            }
 
-        if item.is_null() {
-            return None;
+            // 1. Try item.getText() first (no Context required)
+            let mut text_cs_obj = None;
+            let text_call = env.call_method(&item_val, "getText", "()Ljava/lang/CharSequence;", &[]);
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            } else if let Ok(val) = text_call.and_then(|v| v.l()) {
+                if !val.is_null() {
+                    text_cs_obj = Some(val);
+                }
+            }
+
+            // 2. Fall back to item.coerceToText(context)
+            if text_cs_obj.is_none() {
+                let coerce_call = env.call_method(
+                    &item_val,
+                    "coerceToText",
+                    "(Landroid/content/Context;)Ljava/lang/CharSequence;",
+                    &[jni::objects::JValue::Object(&context_obj)],
+                );
+                if env.exception_check().unwrap_or(false) {
+                    let _ = env.exception_clear();
+                } else if let Ok(val) = coerce_call.and_then(|v| v.l()) {
+                    if !val.is_null() {
+                        text_cs_obj = Some(val);
+                    }
+                }
+            }
+
+            if let Some(cs) = text_cs_obj {
+                let j_str = env.call_method(&cs, "toString", "()Ljava/lang/String;", &[]);
+                if env.exception_check().unwrap_or(false) {
+                    let _ = env.exception_clear();
+                    continue;
+                }
+                if let Ok(j_str_val) = j_str.and_then(|v| v.l()) {
+                    if !j_str_val.is_null() {
+                        if let Ok(rust_str) = env.get_string(&jni::objects::JString::from(j_str_val)) {
+                            let s: String = rust_str.into();
+                            if !s.is_empty() {
+                                log::info!("Read {} chars from Android clipboard", s.len());
+                                return Some(s);
+                            }
+                        }
+                    }
+                }
+            }
         }
-
-        let text_cs = env
-            .call_method(
-                &item,
-                "coerceToText",
-                "(Landroid/content/Context;)Ljava/lang/CharSequence;",
-                &[jni::objects::JValue::Object(&activity)],
-            )
-            .ok()?
-            .l()
-            .ok()?;
-
-        if text_cs.is_null() {
-            return None;
-        }
-
-        let j_str = env
-            .call_method(&text_cs, "toString", "()Ljava/lang/String;", &[])
-            .ok()?
-            .l()
-            .ok()?;
-
-        let rust_str: String = env.get_string(&jni::objects::JString::from(j_str)).ok()?.into();
-        if !rust_str.is_empty() {
-            Some(rust_str)
-        } else {
-            None
-        }
+        None
     }
 }
 
@@ -180,37 +233,49 @@ fn set_android_clipboard(text: &str) {
         Err(_) => return,
     };
     let vm_ptr = ctx.vm();
-    let activity_ptr = ctx.context();
-    if vm_ptr.is_null() || activity_ptr.is_null() {
+    if vm_ptr.is_null() {
         return;
     }
     unsafe {
         let Ok(vm) = jni::JavaVM::from_raw(vm_ptr as *mut jni::sys::JavaVM) else { return };
-        let Ok(mut env) = vm.attach_current_thread() else { return };
+        let mut env = match vm.get_env() {
+            Ok(e) => e,
+            Err(_) => match vm.attach_current_thread_permanently() {
+                Ok(e) => e,
+                Err(_) => return,
+            },
+        };
+
+        if env.exception_check().unwrap_or(false) {
+            let _ = env.exception_clear();
+        }
+
         if let Ok(looper_class) = env.find_class("android/os/Looper") {
             let my_looper = env.call_static_method(&looper_class, "myLooper", "()Landroid/os/Looper;", &[]);
-            if let Ok(val) = my_looper {
-                if val.l().map_or(true, |obj| obj.is_null()) {
-                    let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
-                }
+            let needs_prepare = match my_looper {
+                Ok(val) => val.l().map_or(true, |obj| obj.is_null()),
+                Err(_) => true,
+            };
+            if needs_prepare {
+                let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
             }
         }
         if env.exception_check().unwrap_or(false) {
             let _ = env.exception_clear();
         }
+
         let Ok(service_name) = env.new_string("clipboard") else { return };
-        let activity = jni::objects::JObject::from_raw(activity_ptr as jni::sys::jobject);
-        let Ok(cm) = env
-            .call_method(
-                &activity,
-                "getSystemService",
-                "(Ljava/lang/String;)Ljava/lang/Object;",
-                &[jni::objects::JValue::Object(&service_name)],
-            )
-            .and_then(|v| v.l())
-        else {
-            return;
-        };
+
+        let mut contexts = Vec::new();
+        if let Some(act_ptr) = get_android_activity() {
+            if act_ptr != 0 {
+                contexts.push(jni::objects::JObject::from_raw(act_ptr as jni::sys::jobject));
+            }
+        }
+        let app_ptr = ctx.context();
+        if !app_ptr.is_null() {
+            contexts.push(jni::objects::JObject::from_raw(app_ptr as jni::sys::jobject));
+        }
 
         let Ok(j_text) = env.new_string(text) else { return };
         let Ok(j_label) = env.new_string("CraftAnything") else { return };
@@ -227,12 +292,38 @@ fn set_android_clipboard(text: &str) {
             return;
         };
 
-        let _ = env.call_method(
-            &cm,
-            "setPrimaryClip",
-            "(Landroid/content/ClipData;)V",
-            &[jni::objects::JValue::Object(&clip)],
-        );
+        for ctx_obj in contexts {
+            let cm = env
+                .call_method(
+                    &ctx_obj,
+                    "getSystemService",
+                    "(Ljava/lang/String;)Ljava/lang/Object;",
+                    &[jni::objects::JValue::Object(&service_name)],
+                )
+                .and_then(|v| v.l());
+
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                continue;
+            }
+
+            if let Ok(cm_obj) = cm {
+                if !cm_obj.is_null() {
+                    let _ = env.call_method(
+                        &cm_obj,
+                        "setPrimaryClip",
+                        "(Landroid/content/ClipData;)V",
+                        &[jni::objects::JValue::Object(&clip)],
+                    );
+                    if env.exception_check().unwrap_or(false) {
+                        let _ = env.exception_clear();
+                    } else {
+                        log::info!("Set Android clipboard text ({} chars)", text.len());
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 
