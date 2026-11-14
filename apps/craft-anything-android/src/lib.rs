@@ -26,7 +26,7 @@ fn android_main(app: AndroidApp) {
 
     // Initialize ndk_context so JNI helpers (native Android clipboard, system services) can access the JavaVM and Activity.
     unsafe {
-        ndk_context::initialize_android_context(app.vm_as_raw().cast(), app.activity_as_ptr().cast());
+        ndk_context::initialize_android_context(app.vm_as_ptr().cast(), app.activity_as_ptr().cast());
     }
 
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));
