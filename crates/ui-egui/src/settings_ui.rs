@@ -57,6 +57,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                             (SettingsTab::Builds, "hammer", "Builds"),
                             (SettingsTab::Plugins, "puzzle", "Plugins"),
                             (SettingsTab::Safety, "shield", "Safety"),
+                            (SettingsTab::GitHub, "git-branch", "GitHub"),
                         ] {
                             let on = app.state.settings_tab == tab;
                             let (rect, r) = ui.allocate_exact_size(Vec2::new(96.0, 32.0), egui::Sense::click());
@@ -107,6 +108,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                             SettingsTab::Builds => builds(app, ui),
                             SettingsTab::Plugins => plugins(app, ui),
                             SettingsTab::Safety => safety(app, ui),
+                            SettingsTab::GitHub => github_settings(app, ui),
                         }
                     });
                 });
@@ -121,6 +123,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                             (SettingsTab::Builds, "hammer", "Builds"),
                             (SettingsTab::Plugins, "puzzle", "Plugins"),
                             (SettingsTab::Safety, "shield", "Safety"),
+                            (SettingsTab::GitHub, "git-branch", "GitHub"),
                         ] {
                             let on = app.state.settings_tab == tab;
                             let (rect, r) = ui.allocate_exact_size(Vec2::new(150.0, 34.0), egui::Sense::click());
@@ -171,6 +174,7 @@ pub fn show(app: &mut CraftApp, ctx: &egui::Context) {
                                 SettingsTab::Builds => builds(app, ui),
                                 SettingsTab::Plugins => plugins(app, ui),
                                 SettingsTab::Safety => safety(app, ui),
+                                SettingsTab::GitHub => github_settings(app, ui),
                             }
                         });
                     });
@@ -1168,6 +1172,99 @@ fn safety(app: &mut CraftApp, ui: &mut Ui) {
             ui.label(RichText::new(tool).font(theme::mono(12.0)));
         }
     }
+}
+
+fn github_settings(app: &mut CraftApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    ui.label(theme::heading(tr("GitHub & Cloud Builds"), theme::SECTION));
+    ui.add_space(4.0);
+    ui.label(RichText::new(tr("Connect your GitHub account to enable remote cloud builds for Android APK, Windows executable, and Web targets using GitHub Actions.")).color(t.text_dim));
+    ui.add_space(16.0);
+
+    let username = app.engine.session().settings.github.username.clone();
+    let has_token = !app.engine.session().settings.github.token.trim().is_empty();
+    widgets::card(&t).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            if has_token && !username.is_empty() {
+                icons::show(ui, "check", 18.0, t.accent);
+                ui.label(RichText::new(format!("Connected as @{username}")).color(t.text).strong());
+            } else if has_token {
+                icons::show(ui, "info", 18.0, t.text_dim);
+                ui.label(RichText::new(tr("Token configured. Test connection to verify.")).color(t.text_dim));
+            } else {
+                icons::show(ui, "info", 18.0, t.text_dim);
+                ui.label(RichText::new(tr("No GitHub account connected yet.")).color(t.text_dim));
+            }
+        });
+    });
+    ui.add_space(14.0);
+
+    ui.label(RichText::new(tr("GitHub Personal Access Token (PAT)")).strong());
+    ui.horizontal(|ui| {
+        let r = ui.add(
+            egui::TextEdit::singleline(&mut app.engine.session().settings.github.token)
+                .password(true)
+                .desired_width(ui.available_width() - 40.0)
+                .frame(widgets::text_field_frame(&t)),
+        );
+        if r.changed() {
+            app.settings_changed();
+        }
+        if icons::button(ui, "clipboard-list", 30.0, false, "Paste token").clicked() {
+            app.paste_into(crate::state::PasteTarget::GitHubToken);
+        }
+    });
+    ui.label(RichText::new(tr("Requires 'repo' and 'workflow' scopes.")).size(theme::SMALL).color(t.text_faint));
+    ui.add_space(14.0);
+
+    ui.label(RichText::new(tr("Default Repository (owner/repo)")).strong());
+    ui.horizontal(|ui| {
+        let r = ui.add(
+            egui::TextEdit::singleline(&mut app.engine.session().settings.github.default_repo)
+                .hint_text("e.g. tubers9999/my-project")
+                .desired_width(ui.available_width() - 40.0)
+                .frame(widgets::text_field_frame(&t)),
+        );
+        if r.changed() {
+            app.settings_changed();
+        }
+        if icons::button(ui, "clipboard-list", 30.0, false, "Paste repository").clicked() {
+            app.paste_into(crate::state::PasteTarget::GitHubRepo);
+        }
+    });
+    ui.add_space(16.0);
+
+    ui.horizontal(|ui| {
+        if widgets::primary_icon(ui, Some("refresh-cw"), "Test Connection", has_token).clicked() && has_token {
+            let token = app.engine.session().settings.github.token.trim().to_string();
+            let agent = ureq::Agent::config_builder()
+                .timeout_connect(Some(std::time::Duration::from_secs(10)))
+                .timeout_recv_response(Some(std::time::Duration::from_secs(15)))
+                .build()
+                .new_agent();
+            match agent.get("https://api.github.com/user")
+                .header("Authorization", &format!("Bearer {token}"))
+                .header("User-Agent", "Craft-Anything-Android")
+                .call()
+            {
+                Ok(resp) => {
+                    let mut reader = resp.into_body().into_reader();
+                    if let Ok(val) = serde_json::from_reader::<_, serde_json::Value>(&mut reader) {
+                        if let Some(login) = val.get("login").and_then(|v| v.as_str()) {
+                            app.engine.session().settings.github.username = login.to_string();
+                            app.settings_changed();
+                            app.toast(format!("Connected to GitHub as @{login}!"), false);
+                        } else {
+                            app.toast("Connected to GitHub!", false);
+                        }
+                    }
+                }
+                Err(e) => {
+                    app.toast(format!("GitHub connection failed: {e}"), true);
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]

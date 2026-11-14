@@ -748,40 +748,53 @@ impl CraftApp {
         }
     }
 
+    pub fn apply_pasted_val(&mut self, target: crate::state::PasteTarget, val: String) {
+        match target {
+            crate::state::PasteTarget::WebsiteUrl => self.state.url_input = val,
+            crate::state::PasteTarget::MakeUrl => self.state.make.url = val,
+            crate::state::PasteTarget::ServerAddress => self.server_form.address = val,
+            crate::state::PasteTarget::ServerKey => self.server_form.key = val,
+            crate::state::PasteTarget::AiKey(name) => {
+                self.key_inputs.insert(name, val);
+            }
+            crate::state::PasteTarget::AssetKey(provider) => {
+                self.key_inputs.insert(provider, val);
+            }
+            crate::state::PasteTarget::GitHubToken => {
+                self.engine.session().settings.github.token = val;
+                self.settings_changed();
+            }
+            crate::state::PasteTarget::GitHubRepo => {
+                self.engine.session().settings.github.default_repo = val;
+                self.settings_changed();
+            }
+            crate::state::PasteTarget::Prompt => {
+                let field = if self.state.screen == crate::state::Screen::Home {
+                    &mut self.state.make.request
+                } else if !self.state.input.is_empty() || self.state.screen == crate::state::Screen::Ask {
+                    &mut self.state.input
+                } else {
+                    &mut self.state.project_input
+                };
+                if !field.is_empty() && !field.ends_with(' ') && !field.ends_with('\n') {
+                    field.push(' ');
+                }
+                field.push_str(&val);
+            }
+        }
+    }
+
     /// Pastes text into the given target field, reading system clipboard if available,
-    /// or presenting the fallback in-app paste modal.
+    /// or presenting the fallback in-app paste modal while preserving the active modal.
     pub fn paste_into(&mut self, target: crate::state::PasteTarget) {
         if let Some(text) = crate::clipboard::get_text() {
             let val = text.trim().to_string();
-            match &target {
-                crate::state::PasteTarget::WebsiteUrl => self.state.url_input = val,
-                crate::state::PasteTarget::MakeUrl => self.state.make.url = val,
-                crate::state::PasteTarget::ServerAddress => self.server_form.address = val,
-                crate::state::PasteTarget::ServerKey => self.server_form.key = val,
-                crate::state::PasteTarget::AiKey(name) => {
-                    self.key_inputs.insert(name.clone(), val);
-                }
-                crate::state::PasteTarget::AssetKey(provider) => {
-                    self.key_inputs.insert(provider.clone(), val);
-                }
-                crate::state::PasteTarget::Prompt => {
-                    let field = if self.state.screen == crate::state::Screen::Home {
-                        &mut self.state.make.request
-                    } else if !self.state.input.is_empty() || self.state.screen == crate::state::Screen::Ask {
-                        &mut self.state.input
-                    } else {
-                        &mut self.state.project_input
-                    };
-                    if !field.is_empty() && !field.ends_with(' ') && !field.ends_with('\n') {
-                        field.push(' ');
-                    }
-                    field.push_str(&val);
-                }
-            }
+            self.apply_pasted_val(target, val);
             self.toast(crate::i18n::tr("Pasted from clipboard"), false);
         } else {
+            let return_to = self.state.modal.take().map(Box::new);
             self.state.paste_input.clear();
-            self.state.modal = Some(crate::state::Modal::PasteInput { target });
+            self.state.modal = Some(crate::state::Modal::PasteInput { target, return_to });
         }
     }
 

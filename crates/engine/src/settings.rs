@@ -132,6 +132,17 @@ pub struct Settings {
     pub plugins: crate::plugins::PluginSettings,
     /// How builds are checked and when refining stops (`[build]`).
     pub build: BuildSettings,
+    /// GitHub account connection for Cloud Builds (Android APK, Windows EXE, Web) and repo sync.
+    pub github: GitHubSettings,
+}
+
+/// GitHub account connection and repository settings for cloud builds.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GitHubSettings {
+    pub token: String,
+    pub username: String,
+    pub default_repo: String,
 }
 
 /// How builds are checked and when refining stops.
@@ -214,6 +225,7 @@ impl Default for Settings {
             assets: AssetSettings::default(),
             plugins: crate::plugins::PluginSettings::default(),
             build: BuildSettings::default(),
+            github: GitHubSettings::default(),
         }
     }
 }

@@ -331,6 +331,7 @@ pub enum SettingsTab {
     Builds,
     Plugins,
     Safety,
+    GitHub,
 }
 
 /// A list or view that a tool fills.
@@ -398,6 +399,7 @@ pub enum Modal {
     /// In-app fallback paste input modal when direct system clipboard access is restricted.
     PasteInput {
         target: PasteTarget,
+        return_to: Option<Box<Modal>>,
     },
 }
 
@@ -411,6 +413,8 @@ pub enum PasteTarget {
     AiKey(String),
     AssetKey(String),
     Prompt,
+    GitHubToken,
+    GitHubRepo,
 }
 
 /// The command palette.

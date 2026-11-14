@@ -25,6 +25,7 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "links"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+ureq = "3"
 
 [target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 # Native open/save dialogs, always shown from a worker thread (never blocks a frame).

@@ -192,8 +192,9 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                 Modal::FilePicker { pick, current_dir, input_path } => {
                     file_picker_modal(app, ui, *pick, current_dir, input_path, &mut close);
                 }
-                Modal::PasteInput { target } => {
+                Modal::PasteInput { target, return_to } => {
                     let target = target.clone();
+                    let return_to = return_to.clone();
                     ui.label(theme::heading(tr("Paste text"), theme::SECTION));
                     ui.add_space(8.0);
                     ui.label(RichText::new(tr("Paste or type your text below:")).color(t.text_dim));
@@ -214,37 +215,14 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                         let ok = !app.state.paste_input.trim().is_empty();
                         if widgets::primary_icon(ui, Some("clipboard"), "Insert", ok).clicked() && ok {
                             let val = app.state.paste_input.trim().to_string();
-                            match target {
-                                crate::state::PasteTarget::WebsiteUrl => app.state.url_input = val,
-                                crate::state::PasteTarget::MakeUrl => app.state.make.url = val,
-                                crate::state::PasteTarget::ServerAddress => app.server_form.address = val,
-                                crate::state::PasteTarget::ServerKey => app.server_form.key = val,
-                                crate::state::PasteTarget::AiKey(name) => {
-                                    app.key_inputs.insert(name, val);
-                                }
-                                crate::state::PasteTarget::AssetKey(provider) => {
-                                    app.key_inputs.insert(provider, val);
-                                }
-                                crate::state::PasteTarget::Prompt => {
-                                    let field = if app.state.screen == crate::state::Screen::Home {
-                                        &mut app.state.make.request
-                                    } else if !app.state.input.is_empty() || app.state.screen == crate::state::Screen::Ask {
-                                        &mut app.state.input
-                                    } else {
-                                        &mut app.state.project_input
-                                    };
-                                    if !field.is_empty() && !field.ends_with(' ') && !field.ends_with('\n') {
-                                        field.push(' ');
-                                    }
-                                    field.push_str(&val);
-                                }
-                            }
+                            crate::clipboard::set_in_memory_clipboard(&val);
+                            app.apply_pasted_val(target, val);
                             app.state.paste_input.clear();
-                            close = true;
+                            app.state.modal = return_to.clone().map(|b| *b);
                         }
                         if widgets::secondary(ui, None, "Cancel").clicked() {
                             app.state.paste_input.clear();
-                            close = true;
+                            app.state.modal = return_to.map(|b| *b);
                         }
                     });
                 }

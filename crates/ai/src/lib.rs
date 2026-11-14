@@ -501,19 +501,21 @@ impl AiHub {
             let probe = if openai::is_opencode_go(address) { opencode_go_models_base(address) } else { address.to_string() };
             openai::OpenAi::compatible(name, &probe, key.clone(), "").list_models(Duration::from_secs(10))
         };
-        let models = listed.map_err(|e| {
-            let why = e.message.clone();
-            e.with_remediation(format!(
-                "Check the address (it usually ends in /v1), that the server is running and can be reached from this computer, and its key if it needs one. ({why})"
-            ))
-        })?;
         let model = match model.map(str::trim).filter(|m| !m.is_empty()) {
             Some(m) => m.to_string(),
-            None => detect::chat_model(&models).ok_or_else(|| {
-                let reason = if models.is_empty() { "has no models yet" } else { "doesn't list a model that can chat" };
-                ToolError::new(ErrorCode::NotFound, format!("{address} {reason}."))
-                    .with_remediation("Load a chat model on the server first, or enter the name of a chat model you know is available.")
-            })?,
+            None => {
+                let models = listed.map_err(|e| {
+                    let why = e.message.clone();
+                    e.with_remediation(format!(
+                        "Check the address (it usually ends in /v1), that the server is running and can be reached from this computer, and its key if it needs one. ({why})"
+                    ))
+                })?;
+                detect::chat_model(&models).ok_or_else(|| {
+                    let reason = if models.is_empty() { "has no models yet" } else { "doesn't list a model that can chat" };
+                    ToolError::new(ErrorCode::NotFound, format!("{address} {reason}."))
+                        .with_remediation("Load a chat model on the server first, or enter the name of a chat model you know is available.")
+                })?
+            }
         };
         let config = BackendConfig { name: name.to_string(), kind, model: model.clone(), base_url: Some(address.to_string()), ssh_host: None, enabled: true };
         self.add_backend(config, key)?;

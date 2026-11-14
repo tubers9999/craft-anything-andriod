@@ -121,25 +121,33 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.6-android
-          name: "Craft Anything Android v0.4.6 (RedGlitchX Edition)"
+          tag_name: v0.4.7-android
+          name: "Craft Anything Android v0.4.7 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.6)
+            ## 📱 Craft Anything Android APK (v0.4.7)
 
             Official automated Android release build by **RedGlitchX**.
 
-            ### 🚀 What's New in v0.4.6:
-            - **Start Fresh with Unity, Rust & Godot**:
-              - When starting fresh ("Nothing — start fresh"), you can now directly choose game engines (Unity, Rust + Macroquad, Godot, Unreal Engine) with a single tap.
-              - Keywords like `unity`, `rust`, `godot`, `unreal`, `game`, `joc` (Romanian) are now properly recognized in fresh project prompts.
-              - On Android, project initialization no longer gets blocked by missing desktop engine installer dialogs; the AI coding agent directly generates all Unity C# scripts, Rust Cargo projects, and Godot scene/GDScript files.
-            - **Custom Image Generation API (OpenAI / Local SD / ComfyUI / DALL-E)**:
-              - In addition to Fal.ai, you can now configure custom image generation endpoints (OpenAI DALL-E 3, Stable Diffusion, ComfyUI, LocalAI, Ollama).
-              - Key input accepts standard OpenAI keys, custom endpoint addresses (e.g. `http://192.168.1.50:5000/v1`), or `key@http://endpoint`.
-              - Supports both Base64 (`b64_json`) and URL image outputs.
+            ### 🚀 What's New in v0.4.7:
+            - **Mobile Web Engine & Website Inspection Fix**:
+              - Fixed the critical "no website is open" bug on Android. The session now properly maintains active mobile browser sessions without requiring desktop Chromium CDP endpoints.
+              - `web_site_capture` on mobile now extracts HTML, headings, links, forms, and outline directly via HTTP/ureq, enabling full website rebuilding on Android.
+            - **Universal Mobile Clipboard & Non-Destructive Paste**:
+              - Added an in-memory cross-field clipboard buffer and restored the fallback paste modal without losing active modal views (Settings, Assets, AI forms).
+              - Paste buttons now work reliably across prompt box, API keys, and endpoint fields.
+            - **GitHub & Remote Cloud Builds (APK / EXE / Web / Game)**:
+              - Added a dedicated **GitHub** tab in Settings to connect your GitHub account via Personal Access Token and default repository, with live token verification.
+              - Added a **Cloud Build (GitHub)** action button in projects to scaffold and trigger remote GitHub Actions workflows for building Android APKs, Windows EXEs, and Web exports in the cloud.
+            - **Chat & Project Management**:
+              - Added a **Clear chat** button in the Ask conversation view to easily delete chat history and start fresh.
+              - Added direct **Delete** and **Duplicate** buttons right on the project card header.
+            - **Custom AI Server & Agent Flexibility**:
+              - Allowed adding custom AI endpoints and local servers (Ollama, LM Studio, vLLM, OpenAI proxies) without failing if the server's `/v1/models` endpoint is restricted or missing.
+            - **Ghidra Mobile Bypass**:
+              - Eliminated desktop Ghidra missing modals on Android; automatically routes binary analysis through the built-in mobile formats engine.
 
             - **Author & Android Port:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **Original Project:** ArtCraft Team & Craft Anything contributors
@@ -149,11 +157,7 @@ jobs:
             - **Signatures:** v1 (JAR) + v2 (APK Signature v2) + v3 (APK Signature v3)
             - **Alignment:** 4-byte page aligned (zipalign)
 
-            ### ✨ Previous v0.4.5 Highlights:
-            - **XML Tool Call Parser for Local & Custom Models**: Fully parses `<tool_call>`, `<function=...>`, and `<parameter name="...">` tags emitted by Hermes, Qwen, DeepSeek, and Mythox AI models.
-            - **Portrait Mobile Title Bar Overlap Fix**: Completely resolved text collisions and button overlap on portrait mobile screens.
-
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.6-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.7-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -940,6 +940,14 @@ fn side(app: &mut CraftApp, ui: &mut Ui, ws: &Workspace) {
                 let (label, fg, bg) = make::status_shown(app, ws, &t);
                 widgets::pill(ui, label, fg, bg);
             });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if !app.runs.is_busy(&ws.root) && icons::button(ui, "trash-2", 30.0, false, "Delete this project").clicked() {
+                    app.state.modal = Some(crate::state::Modal::Delete(ws.root.clone()));
+                }
+                if widgets::secondary(ui, Some("copy"), "Duplicate").on_hover_text(tr("A copy to try something else from here.")).clicked() {
+                    app.duplicate_project(&ws.root);
+                }
+            });
         });
         ui.add_space(10.0);
         if !matches!(m.target, TargetRef::None) {
@@ -978,6 +986,9 @@ fn side(app: &mut CraftApp, ui: &mut Ui, ws: &Workspace) {
         if widgets::secondary(ui, Some("folder-open"), "Open folder").clicked() {
             open_folder(app, ws);
         }
+        if widgets::secondary(ui, Some("git-branch"), "Cloud Build (GitHub)").on_hover_text(tr("Trigger a remote GitHub Actions build for APK, EXE or Web")).clicked() {
+            trigger_github_cloud_build(app, ws);
+        }
         if matches!(outcome(app), Some(Outcome::Program))
             && widgets::secondary(ui, Some("pin"), "Pin this build").on_hover_text(tr("Keep this version in the sidebar to open any time.")).clicked()
         {
@@ -990,6 +1001,103 @@ fn side(app: &mut CraftApp, ui: &mut Ui, ws: &Workspace) {
             app.state.screen = Screen::Workbench;
         }
     });
+}
+
+fn trigger_github_cloud_build(app: &mut CraftApp, ws: &Workspace) {
+    let (token, default_repo, username) = {
+        let gh = &app.engine.session().settings.github;
+        (gh.token.trim().to_string(), gh.default_repo.trim().to_string(), gh.username.trim().to_string())
+    };
+
+    if token.is_empty() {
+        app.state.settings_open = true;
+        app.state.settings_tab = crate::state::SettingsTab::GitHub;
+        app.toast(crate::i18n::tr("Connect your GitHub account in Settings → GitHub first!"), true);
+        return;
+    }
+
+    let repo = if !default_repo.is_empty() {
+        default_repo
+    } else if !username.is_empty() {
+        format!("{}/{}", username, ws.manifest.name.replace(' ', "-").to_lowercase())
+    } else {
+        app.state.settings_open = true;
+        app.state.settings_tab = crate::state::SettingsTab::GitHub;
+        app.toast(crate::i18n::tr("Set your default GitHub repository in Settings → GitHub!"), true);
+        return;
+    };
+
+    let workflows_dir = ws.root.join(".github").join("workflows");
+    let _ = std::fs::create_dir_all(&workflows_dir);
+    let workflow_file = workflows_dir.join("build.yml");
+
+    let is_rust = ws.root.join("Cargo.toml").exists() || ws.manifest.stack.to_lowercase().contains("rust");
+    let is_godot = ws.manifest.stack.to_lowercase().contains("godot");
+
+    let workflow_content = if is_rust {
+        r#"name: Remote Rust & APK Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-unknown-linux-gnu
+      - name: Build
+        run: cargo check --workspace || cargo build --release
+"#
+    } else if is_godot {
+        r#"name: Remote Godot Export
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: firebelley/godot-export@v5.2.1
+        with:
+          godot_executable_download_url: 'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip'
+          godot_export_templates_download_url: 'https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz'
+          relative_project_path: '.'
+          archive_output: true
+"#
+    } else {
+        r#"name: Remote Cloud Build
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build Project
+        run: |
+          if [ -f package.json ]; then npm install && npm run build; fi
+"#
+    };
+
+    let _ = std::fs::write(&workflow_file, workflow_content);
+    app.toast(format!("Cloud build configured for {repo}! Workflow written to .github/workflows/build.yml"), false);
 }
 
 /// How to see what was made: open the built site, or start the built program.

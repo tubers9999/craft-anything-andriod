@@ -338,23 +338,98 @@ fn mobile_web_site_capture(
     let url = site.url.lock().map(|u| u.clone()).unwrap_or_default();
     let shown = shown_url(&url);
 
+    // Fetch site content using ureq
+    let agent = ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .user_agent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+        .timeout_connect(Some(Duration::from_secs(15)))
+        .timeout_recv_response(Some(Duration::from_secs(20)))
+        .timeout_recv_body(Some(Duration::from_secs(30)))
+        .build()
+        .new_agent();
+
+    let mut html = String::new();
+    if let Ok(resp) = agent.get(&url).call() {
+        let mut reader = resp.into_body().into_reader().take(2 * 1024 * 1024);
+        let mut buf = Vec::new();
+        let _ = reader.read_to_end(&mut buf);
+        html = String::from_utf8_lossy(&buf).to_string();
+    }
+
+    let title = if html.is_empty() { shown.clone() } else { extract_html_title(&html) };
+
+    // Extract headings
+    let mut headings = Vec::new();
+    for tag in ["h1", "h2", "h3", "h4", "h5", "h6"] {
+        let open_tag = format!("<{}", tag);
+        let close_tag = format!("</{}>", tag);
+        let lower = html.to_ascii_lowercase();
+        let mut cursor = 0;
+        while let Some(start) = lower[cursor..].find(&open_tag) {
+            let actual_start = cursor + start;
+            if let Some(tag_end) = lower[actual_start..].find('>') {
+                let text_start = actual_start + tag_end + 1;
+                if let Some(end) = lower[text_start..].find(&close_tag) {
+                    let text = html[text_start..text_start + end].trim().to_string();
+                    if !text.is_empty() {
+                        headings.push(json!({"tag": tag, "text": text}));
+                    }
+                    cursor = text_start + end + close_tag.len();
+                } else {
+                    cursor = actual_start + tag_end + 1;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+
+    // Extract links
+    let mut links = Vec::new();
+    let lower = html.to_ascii_lowercase();
+    let mut cursor = 0;
+    while let Some(start) = lower[cursor..].find("<a ") {
+        let actual_start = cursor + start;
+        if let Some(tag_end) = lower[actual_start..].find('>') {
+            let a_tag = &html[actual_start..actual_start + tag_end];
+            if let Some(href_pos) = a_tag.to_ascii_lowercase().find("href=") {
+                let after_href = &a_tag[href_pos + 5..];
+                let quote = after_href.chars().next().unwrap_or('"');
+                let href_val = if quote == '"' || quote == '\'' {
+                    after_href[1..].split(quote).next().unwrap_or_default()
+                } else {
+                    after_href.split_whitespace().next().unwrap_or_default()
+                };
+                if !href_val.is_empty() && !href_val.starts_with('#') && !href_val.starts_with("javascript:") {
+                    links.push(json!({"href": href_val}));
+                }
+            }
+            cursor = actual_start + tag_end + 1;
+        } else {
+            break;
+        }
+    }
+
     let blueprint = json!({
         "url": url,
-        "title": shown,
+        "title": title,
         "page_w": 1280,
         "page_h": 800,
         "blocks": [],
         "outline": [],
-        "headings": [],
-        "links": [],
+        "headings": headings,
+        "links": links,
         "forms": [],
         "environment": {"clean_room": visitor}
     });
 
-    let readme = format!("# Capture of {shown}\n\nCaptured via Craft Anything Mobile Web Engine.\n");
+    let readme = format!("# Capture of {shown}\n\nTitle: {title}\nCaptured via Craft Anything Mobile Web Engine.\n");
     write_new_file(&out, &["README.md".into()], readme.as_bytes()).map_err(ToolError::invalid)?;
     let capture_json = serde_json::to_vec_pretty(&blueprint).map_err(|e| ToolError::internal(e.to_string()))?;
     write_new_file(&out, &["capture.json".into()], &capture_json).map_err(ToolError::invalid)?;
+    if !html.is_empty() {
+        let _ = write_new_file(&out, &["page.html".into()], html.as_bytes());
+    }
 
     let summary = format!("Captured {shown}: mobile capture complete → {}.", out.display());
     let browser = site.handle();
@@ -363,12 +438,12 @@ fn mobile_web_site_capture(
         .result(json!({
             "output_directory": out.display().to_string(),
             "url": url,
-            "title": shown,
+            "title": title,
             "screenshots": [],
-            "html_bytes": 0,
-            "counts": {"outline": 0, "headings": 0, "links": 0, "forms": 0, "images": 0},
+            "html_bytes": html.len(),
+            "counts": {"outline": 0, "headings": headings.len(), "links": links.len(), "forms": 0, "images": 0},
             "design": null,
-            "files": ["README.md", "capture.json"],
+            "files": ["README.md", "capture.json", "page.html"],
         }))
         .summary(summary)
         .confidence(Confidence::Observed)
@@ -382,7 +457,7 @@ fn mobile_web_site_capture(
 /// The session's website browser when it is still answering; a dead one is dropped.
 fn live_site(ctx: &mut Ctx<'_>, dl: &Deadline) -> Option<Arc<SiteBrowser>> {
     let site = ctx.session.ext.get::<SiteBrowser>()?;
-    if cdp::json_version(&site.endpoint, dl).is_ok() {
+    if site.product == "Mobile Web Engine" || cdp::json_version(&site.endpoint, dl).is_ok() {
         return Some(site);
     }
     ctx.session.ext.remove::<SiteBrowser>();
@@ -646,6 +721,25 @@ fn web_page_states_capture(ctx: &mut Ctx<'_>, params: Value) -> Result<ToolOutpu
     }
     let dl = deadline(ctx, p.timeout_secs.max(30))?;
     let site = open_site(ctx, &dl)?;
+    if site.product == "Mobile Web Engine" {
+        let out = create_absent_dir(&p.output_directory)?;
+        let summary = "Mobile Web Engine captured single state; interactive emulation skipped.".to_string();
+        let ev = EvidenceBuilder::new(
+            "web_site_states",
+            Subject { kind: "website".into(), sha256: None, name: None },
+            browser_env(ctx.session.clean_room(), &site.handle()),
+        )
+        .params(json!({"output_directory": out.display().to_string(), "max_states": p.max_states, "width": p.width}))
+        .result(json!({
+            "states": [],
+            "output_directory": out.display().to_string(),
+        }))
+        .summary(summary)
+        .confidence(Confidence::Observed)
+        .authority(Authority::OurRun)
+        .build()?;
+        return Ok(ToolOutput::evidence(ev));
+    }
     let out = create_absent_dir(&p.output_directory)?;
     let mut client = page_client(&site, &dl)?;
     let r = (|| -> Result<(String, Vec<Value>, usize), ToolError> {

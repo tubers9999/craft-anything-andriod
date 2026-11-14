@@ -1,5 +1,21 @@
 //! System clipboard reading & writing helper with Android and Termux support.
 
+use std::sync::Mutex;
+
+static IN_MEMORY_CLIPBOARD: Mutex<Option<String>> = Mutex::new(None);
+
+/// Set text in the internal application clipboard cache.
+pub fn set_in_memory_clipboard(text: &str) {
+    if let Ok(mut g) = IN_MEMORY_CLIPBOARD.lock() {
+        *g = Some(text.to_string());
+    }
+}
+
+/// Get text from the internal application clipboard cache.
+pub fn get_in_memory_clipboard() -> Option<String> {
+    IN_MEMORY_CLIPBOARD.lock().ok().and_then(|g| g.clone()).filter(|s| !s.trim().is_empty())
+}
+
 #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
 use arboard::Clipboard;
 
@@ -10,6 +26,7 @@ pub fn get_text() -> Option<String> {
         if let Ok(mut cb) = Clipboard::new() {
             if let Ok(t) = cb.get_text() {
                 if !t.is_empty() {
+                    set_in_memory_clipboard(&t);
                     return Some(t);
                 }
             }
@@ -20,12 +37,13 @@ pub fn get_text() -> Option<String> {
     {
         if let Some(text) = get_termux_clipboard() {
             if !text.trim().is_empty() {
+                set_in_memory_clipboard(&text);
                 return Some(text);
             }
         }
     }
 
-    None
+    get_in_memory_clipboard()
 }
 
 /// Read clipboard text via Termux API if present.
@@ -51,6 +69,7 @@ fn get_termux_clipboard() -> Option<String> {
 /// Set plain text to the clipboard.
 pub fn set_text(ctx: &egui::Context, text: &str) {
     ctx.copy_text(text.to_string());
+    set_in_memory_clipboard(text);
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
     {
         if let Ok(mut cb) = Clipboard::new() {

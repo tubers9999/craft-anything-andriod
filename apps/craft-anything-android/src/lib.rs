@@ -2,9 +2,13 @@
 //! Copyright (c) 2026 RedGlitchX. All rights reserved.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+#[cfg(target_os = "android")]
 use craft_anything_ai::AiHub;
+#[cfg(target_os = "android")]
 use craft_anything_engine::{Engine, Session, Settings};
+#[cfg(target_os = "android")]
 use craft_anything_ui_egui::CraftApp;
+#[cfg(target_os = "android")]
 use std::sync::Arc;
 
 #[cfg(target_os = "android")]

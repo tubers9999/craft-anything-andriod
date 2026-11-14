@@ -136,6 +136,9 @@ impl CraftApp {
 
     /// Deep mode is on, but it can't use Ghidra yet.
     pub fn ghidra_missing(&mut self) -> bool {
+        if cfg!(target_os = "android") {
+            return false;
+        }
         self.settings.deep_mode && !self.ghidra_ready()
     }
 
@@ -227,7 +230,9 @@ pub fn ghidra_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
     ui.add_space(12.0);
     let body = |ui: &mut Ui, text: String| ui.add(egui::Label::new(RichText::new(text).size(theme::BODY)).wrap());
     let then = if app.ghidra.start_after.is_some() { tr("Your project starts as soon as it's done.") } else { String::new() };
-    if ready {
+    if cfg!(target_os = "android") {
+        body(ui, tr("On Android, binary and format analysis are handled directly by the built-in mobile engine. Desktop Ghidra is not required."));
+    } else if ready {
         body(ui, tr("Deep mode now decompiles with Ghidra. The first look at a large program can take several minutes."));
     } else if let Some((fraction, message)) = &downloading {
         progress_bar(ui, *fraction, message);
@@ -266,6 +271,14 @@ pub fn ghidra_modal(app: &mut CraftApp, ui: &mut Ui, close: &mut bool) {
         } else if downloading.is_some() {
             if widgets::secondary(ui, None, "Close").on_hover_text(tr("The download keeps going in the background.")).clicked() {
                 *close = true;
+            }
+        } else if cfg!(target_os = "android") {
+            if widgets::primary(ui, "Continue with Built-in Engine").clicked() {
+                *close = true;
+                if let Some(mut draft) = app.ghidra.start_after.take() {
+                    draft.skip_ghidra = true;
+                    app.start_draft(*draft);
+                }
             }
         } else {
             if get::can_install() && widgets::primary_icon(ui, Some("download"), "Download and use Ghidra", true).clicked() {

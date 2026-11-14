@@ -262,6 +262,15 @@ fn history(app: &mut CraftApp, ui: &mut Ui, dense: bool, pad: f32, max_w: f32) {
                 ui.set_width(max_w);
                 if app.state.chat.is_empty() {
                     greeting(app, ui, dense);
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.add_space((ui.available_width() - 120.0).max(0.0));
+                        if widgets::secondary(ui, Some("trash-2"), "Clear chat").on_hover_text(tr("Delete conversation history and start fresh")).clicked() {
+                            app.state.chat.clear();
+                            app.state.input.clear();
+                        }
+                    });
+                    ui.add_space(6.0);
                 }
                 let mut actions = Vec::new();
                 let beginner = app.beginner();
