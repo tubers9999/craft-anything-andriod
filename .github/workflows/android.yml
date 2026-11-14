@@ -94,6 +94,7 @@ jobs:
             --ks-pass pass:craftanything \
             --ks-key-alias craftanything \
             --key-pass pass:craftanything \
+            --min-sdk-version 26 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
@@ -104,8 +105,9 @@ jobs:
           echo "Verifying APK signatures:"
           $APKSIGNER verify --verbose dist/craft-anything-andriod.apk
 
-          # Dump APK badging to ensure package metadata is valid
+          # Dump APK badging and manifest to ensure package metadata is valid
           $BUILD_TOOLS_DIR/aapt dump badging dist/craft-anything-andriod.apk
+          $BUILD_TOOLS_DIR/aapt dump xmltree dist/craft-anything-andriod.apk AndroidManifest.xml
 
           echo "Final built APK size:"
           ls -lh dist/craft-anything-andriod.apk
@@ -121,33 +123,33 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.8-android
-          name: "Craft Anything Android v0.4.8 (RedGlitchX Edition)"
+          tag_name: v0.4.9-android
+          name: "Craft Anything Android v0.4.9 (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false
           body: |
-            ## 📱 Craft Anything Android APK (v0.4.8)
+            ## 📱 Craft Anything Android APK (v0.4.9)
 
             Official automated Android release build by **RedGlitchX**.
 
-            ### 🚀 What's New in v0.4.8:
+            ### 🚀 What's New in v0.4.9:
+            - **Package Validation & Installation Fix ("Package appears to be invalid" / Parse Error)**:
+              - Explicitly enabled `extractNativeLibs="true"` in both `AndroidManifest.xml` and Cargo Android package metadata. On Android 10+ (API 29-35), compressed native libraries with `extractNativeLibs="false"` cause installation rejection (`INSTALL_FAILED_INVALID_APK`).
+              - Added multi-density launcher icons (`res/mipmap-mdpi`, `res/mipmap-hdpi`, `res/mipmap-xhdpi`, `res/mipmap-xxhdpi`, `res/mipmap-xxxhdpi`) so Android launcher parsers on all screen densities resolve icon assets cleanly.
+              - Injected `windowSoftInputMode="adjustResize|stateHidden"` directly into the `cargo-apk` activity metadata to ensure the soft keyboard smoothly resizes views.
+              - Signed with canonical permanent `release.keystore` supporting v1 (JAR), v2, and v3 signature schemes.
             - **Native Android JNI Clipboard (Direct System Copy/Paste)**:
-              - Full native JNI integration with Android's system `ClipboardManager` via `ndk-context` and `android-activity`.
-              - Pasting text copied from external apps (Chrome, GitHub, Notes) works seamlessly in all fields (Prompt box, API keys, AI server endpoints, GitHub PAT).
-            - **Soft Keyboard Overlap & Layout Fix (`adjustResize`)**:
-              - Added `android:windowSoftInputMode="adjustResize|stateHidden"` to `AndroidManifest.xml`.
-              - When the Android soft keyboard appears, the viewport smoothly resizes to keep active text edit controls fully visible without clipping or defocusing.
-            - **Settings Modal Responsive Overhaul**:
-              - Eliminated hardcoded scroll clamps and height overflow bugs that broke scrolling on mobile portrait screens.
-              - The Settings modal now dynamically scales and scrolls cleanly on any mobile screen.
+              - Direct system clipboard access via JNI (`ClipboardManager`), enabling instant paste into prompts, API keys, and endpoints.
+            - **Mobile Keyboard & Viewport Fix**:
+              - Soft keyboard no longer clips or pushes edit controls out of view (`adjustResize`).
             - **Dedicated Private Cloud Build Repo & Copyright**:
-              - Added one-click creation and linking of a private GitHub build repository (`craft-anything-cloud-builds`) in Settings.
-              - Automated remote Android APK builds, keystore generation, and signing via GitHub Actions.
-              - All cloud build workflows, manifests, and binaries are explicitly attributed to and copyrighted by **RedGlitchX (@tubers9999)**.
-            - **Mobile Project & Chat Management**:
-              - Added direct project deletion, rename, and cloud build triggers on mobile project cards without needing desktop right-click.
-              - Accessible conversation clearing directly in chat.
+              - Create and manage private GitHub build repo with 1 tap.
+              - Attributed and copyrighted by **RedGlitchX (@tubers9999)**.
+
+            > [!IMPORTANT]
+            > **NOTĂ INSTALARE / INSTALLATION NOTE:**
+            > Dacă ai instalată pe telefon o versiune anterioară (v0.4.8, v0.4.7 sau versiuni mai vechi), **dezinstalează mai întâi aplicația veche** înainte de a instala acest APK! Android blochează actualizările când se schimbă structura pachetului sau semnătura de instalare (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
             - **Author & Copyright:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
             - **License:** Dual-licensed MIT / Apache 2.0
@@ -157,6 +159,6 @@ jobs:
             - **Alignment:** 4-byte page aligned (zipalign)
 
             ### ⬇️ Download APK
-            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.8-android/craft-anything-andriod.apk)**
+            - **[craft-anything-andriod.apk](https://github.com/${{ github.repository }}/releases/download/v0.4.9-android/craft-anything-andriod.apk)**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

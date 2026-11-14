@@ -2,7 +2,7 @@
 name = "craft-anything-android"
 description = "Craft Anything Android APK runner by RedGlitchX"
 authors = ["RedGlitchX <tubers9999@users.noreply.github.com>"]
-version = "0.4.8"
+version = "0.4.9"
 edition.workspace = true
 license.workspace = true
 publish = false
@@ -55,6 +55,21 @@ name = "android.permission.MANAGE_EXTERNAL_STORAGE"
 label = "Craft Anything"
 icon = "@mipmap/ic_launcher"
 has_code = false
+extract_native_libs = true
+
+[[package.metadata.android.application.activity]]
+name = "android.app.NativeActivity"
+config_changes = "orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation"
+window_soft_input_mode = "adjustResize|stateHidden"
+exported = true
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.MAIN"]
+categories = ["android.intent.category.LAUNCHER"]
+
+[[package.metadata.android.application.activity.meta_data]]
+name = "android.app.lib_name"
+value = "craft_anything_android"
 
 [package.metadata.android.signing.release]
 path = "release.keystore"
