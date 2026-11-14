@@ -8,8 +8,8 @@ repository.workspace = true
 publish = false
 build = "build.rs"
 
-[lints]
-workspace = true
+[lints.rust]
+unsafe_code = "allow"
 
 [dependencies]
 craft-anything-engine = { workspace = true }
@@ -42,7 +42,7 @@ eframe = { workspace = true, features = ["accesskit"] }
 [target.'cfg(target_os = "android")'.dependencies]
 pollster = "0.4"
 sys-locale = "0.3.2"
-jni = "0.22"
+jni = "0.21"
 ndk-context = "0.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
