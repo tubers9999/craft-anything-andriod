@@ -163,17 +163,29 @@ pub fn hero(app: &mut CraftApp, ui: &mut Ui, w: f32) {
         }
         engine_choices(app, ui);
         ui.add_space(16.0);
-        ui.horizontal(|ui| {
+        let is_mobile = ui.available_width() < 450.0;
+        if is_mobile {
             crate::builders::built_by(app, ui);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let ready = !app.state.make.request.trim().is_empty() && url_problem(&app.state.make.url).is_none() && app.creating.is_none();
-                let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 50.0, 14.0);
-                let start = if ready { start } else { start.on_disabled_hover_text(tr("Say what you want first.")) };
-                if (start.clicked() || submit) && ready {
-                    app.start_make();
-                }
+            ui.add_space(10.0);
+            let ready = !app.state.make.request.trim().is_empty() && url_problem(&app.state.make.url).is_none() && app.creating.is_none();
+            let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 48.0, 15.0);
+            let start = if ready { start } else { start.on_disabled_hover_text(tr("Say what you want first.")) };
+            if (start.clicked() || submit) && ready {
+                app.start_make();
+            }
+        } else {
+            ui.horizontal(|ui| {
+                crate::builders::built_by(app, ui);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let ready = !app.state.make.request.trim().is_empty() && url_problem(&app.state.make.url).is_none() && app.creating.is_none();
+                    let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 50.0, 14.0);
+                    let start = if ready { start } else { start.on_disabled_hover_text(tr("Say what you want first.")) };
+                    if (start.clicked() || submit) && ready {
+                        app.start_make();
+                    }
+                });
             });
-        });
+        }
         // Where it's saved: secondary to Start, so under it.
         ui.add_space(10.0);
         crate::folders::make_line(app, ui);
@@ -225,22 +237,39 @@ fn mine(app: &mut CraftApp, ui: &mut Ui, w: f32) {
         let submit = request_box(app, ui, "For example: add a dark mode", Some("Attach pictures (or drop or paste them here)"));
         engine_choices(app, ui);
         ui.add_space(16.0);
-        ui.horizontal(|ui| {
+        let is_mobile = ui.available_width() < 450.0;
+        if is_mobile {
             crate::builders::built_by(app, ui);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let said = !app.state.make.request.trim().is_empty();
-                let ready = folder.is_some() && said && app.creating.is_none();
-                let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 50.0, 14.0);
-                let start = if ready {
-                    start
-                } else {
-                    start.on_disabled_hover_text(tr(if folder.is_none() { "Pick your project's folder first." } else { "Say what you want first." }))
-                };
-                if (start.clicked() || submit) && ready {
-                    app.start_make();
-                }
+            ui.add_space(10.0);
+            let said = !app.state.make.request.trim().is_empty();
+            let ready = folder.is_some() && said && app.creating.is_none();
+            let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 48.0, 15.0);
+            let start = if ready {
+                start
+            } else {
+                start.on_disabled_hover_text(tr(if folder.is_none() { "Pick your project's folder first." } else { "Say what you want first." }))
+            };
+            if (start.clicked() || submit) && ready {
+                app.start_make();
+            }
+        } else {
+            ui.horizontal(|ui| {
+                crate::builders::built_by(app, ui);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let said = !app.state.make.request.trim().is_empty();
+                    let ready = folder.is_some() && said && app.creating.is_none();
+                    let start = widgets::primary_sized(ui, Some("sparkles"), "Start", ready, 50.0, 14.0);
+                    let start = if ready {
+                        start
+                    } else {
+                        start.on_disabled_hover_text(tr(if folder.is_none() { "Pick your project's folder first." } else { "Say what you want first." }))
+                    };
+                    if (start.clicked() || submit) && ready {
+                        app.start_make();
+                    }
+                });
             });
-        });
+        }
     });
 }
 

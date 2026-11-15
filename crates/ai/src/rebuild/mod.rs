@@ -867,6 +867,9 @@ impl Worker {
                 if !reply.trim().is_empty() {
                     ws.manifest.last_reply = reply.trim().to_string();
                 }
+                if app_is_empty(ws) {
+                    let _ = extract_code_blocks_if_empty(ws, &reply);
+                }
                 // The stack is recorded as the one the build uses, once it shows: left to the builder,
                 // or another than the default because the request asked for it. A game engine stays
                 // (it says the project is a game, and its editor is found for it).
@@ -1284,7 +1287,7 @@ fn not_working(ws: &Workspace) -> ToolError {
 
 /// The builder's next request when app/ holds no files: write the project first, then say what the
 /// build printed. The reporter's agent claimed `npm run build` had passed while app/ was empty (#736).
-const NO_PROJECT_PROMPT: &str = "The check found no project: app/ has no files, so nothing has been written yet and nothing can be built. Create the project's files in app/ now (for a website, a package.json and an index.html or the source files), then build it. Reply with the exact command you ran and the last lines of its output. Say something is built only when that output says so.";
+const NO_PROJECT_PROMPT: &str = "The check found no project: app/ has no files, so nothing has been written yet and nothing can be built. Create the project's files in app/ now with build_file_write (for a website, app/package.json and app/index.html or the source files), then build it. Reply with the exact command you ran and the last lines of its output. Say something is built only when that output says so.";
 
 fn no_build_progress(ws: &Workspace) -> ToolError {
     let stop = format!("The build stopped after two builder turns changed no files in {}.", ws.app_place());
@@ -1315,6 +1318,94 @@ fn no_files_yet(ws: &Workspace) -> String {
     format!("{} has no files yet, so the builder hasn't written the project.", ws.app_place())
 }
 
+/// If app/ is empty and the builder output markdown code blocks instead of calling tool functions,
+/// extract and save those files so the build can proceed.
+fn extract_code_blocks_if_empty(ws: &Workspace, reply: &str) -> bool {
+    if !app_is_empty(ws) || reply.trim().is_empty() {
+        return false;
+    }
+    let app_dir = ws.app_dir();
+    let mut changed = false;
+    let mut in_block = false;
+    let mut block_lang = String::new();
+    let mut block_content = String::new();
+
+    for line in reply.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            if in_block {
+                in_block = false;
+                if let Some(name) = deduce_filename(&block_lang, &block_content) {
+                    let target_path = app_dir.join(&name);
+                    if let Some(parent) = target_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    if std::fs::write(&target_path, block_content.as_bytes()).is_ok() {
+                        changed = true;
+                        log::info!("Extracted {name} from markdown code block into {}", target_path.display());
+                    }
+                }
+                block_content.clear();
+                block_lang.clear();
+            } else {
+                in_block = true;
+                block_lang = trimmed.trim_start_matches('`').trim().to_lowercase();
+                block_content.clear();
+            }
+        } else if in_block {
+            block_content.push_str(line);
+            block_content.push('\n');
+        }
+    }
+    changed
+}
+
+fn deduce_filename(lang_info: &str, content: &str) -> Option<String> {
+    let parts: Vec<&str> = lang_info.split_whitespace().collect();
+    if parts.len() > 1 {
+        let candidate = parts[1].trim_matches(|c| c == '\'' || c == '"' || c == '`' || c == ':' || c == '(' || c == ')');
+        if candidate.contains('.') {
+            return Some(candidate.to_string());
+        }
+    }
+
+    if let Some(first_line) = content.lines().next() {
+        let trimmed = first_line.trim();
+        for prefix in ["<!--", "//", "/*", "#"] {
+            if trimmed.starts_with(prefix) {
+                let stripped = trimmed.trim_start_matches(prefix).trim_end_matches("-->").trim_end_matches("*/").trim();
+                for token in stripped.split_whitespace() {
+                    let clean = token.trim_matches(|c| c == ':' || c == '\'' || c == '"' || c == '`');
+                    if clean.ends_with(".html") || clean.ends_with(".js") || clean.ends_with(".css") || clean.ends_with(".json") || clean.ends_with(".rs") || clean.ends_with(".ts") {
+                        return Some(clean.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let lang = parts.first().copied().unwrap_or("");
+    match lang {
+        "html" => Some("index.html".to_string()),
+        "css" => Some("style.css".to_string()),
+        "javascript" | "js" => Some("main.js".to_string()),
+        "json" => {
+            if content.contains("\"name\"") || content.contains("\"version\"") || content.contains("\"dependencies\"") {
+                Some("package.json".to_string())
+            } else {
+                None
+            }
+        }
+        _ => {
+            if content.contains("<!DOCTYPE html") || content.contains("<html") {
+                Some("index.html".to_string())
+            } else {
+                None
+            }
+        }
+    }
+}
+
 /// Why a coding agent can't build: never signed in, or signed in `before` with a sign-in that no
 /// longer works (expired, or signed out), which the person may not expect.
 fn not_signed_in(agent: &str, before: bool) -> String {
@@ -1342,7 +1433,7 @@ fn kept_session(ws: &Workspace) -> Option<String> {
 }
 
 /// What an API-backend builder is told first: its tools differ from an agent app's.
-const API_BUILDER: &str = "Your tools: build_files_list, build_file_read, build_file_write and build_file_edit for the project's files (paths relative to the project folder, e.g. app/src/main.rs), and build_command_run for commands, which run in app/ (never start dev servers or watchers). Where the steps below mention Read, Write, Edit or Bash, use these. For the checklist step use build_checklist (the same shape as TodoWrite: todos with content, activeForm and status) and call it again as you go. You can't look at pictures: use capture/README.md, capture/capture.json and the evidence instead. Ask the person with core_person_ask only when a choice really changes the result. Other Craft Anything tools are available too; enable a toolset with enable_toolset when you need it. rebuild_check isn't available in this loop: Craft Anything checks your build after each turn instead.";
+const API_BUILDER: &str = "Your tools: build_files_list, build_file_read, build_file_write and build_file_edit for the project's files (paths relative to the project folder, e.g. app/src/main.rs), and build_command_run for commands, which run in app/ (never start dev servers or watchers). In your very first turn, you must create the foundational project files in app/ (such as package.json, index.html, or src files) using build_file_write. Where the steps below mention Read, Write, Edit or Bash, use these. For the checklist step use build_checklist (the same shape as TodoWrite: todos with content, activeForm and status) and call it again as you go. You can't look at pictures: use capture/README.md, capture/capture.json and the evidence instead. Ask the person with core_person_ask only when a choice really changes the result. Other Craft Anything tools are available too; enable a toolset with enable_toolset when you need it. rebuild_check isn't available in this loop: Craft Anything checks your build after each turn instead.";
 
 /// Added to a refinement for a builder that can check its own work.
 const CHECK_BEFORE_REPLYING: &str = " Before you reply, check your build again with rebuild_check and fix what it still lists.";

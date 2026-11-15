@@ -277,7 +277,7 @@ pub fn show(ui: &mut Ui, text: &mut String, attachments: &[PathBuf], b: PromptBo
                         out.paste_text = true;
                     }
                 }
-                if ui.available_width() > 180.0 {
+                if ui.available_width() > 320.0 {
                     ui.label(RichText::new(tr("Enter to send · Shift+Enter for a new line")).size(theme::CAPTION).color(t.text_faint));
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

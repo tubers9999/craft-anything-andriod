@@ -1,26 +1,26 @@
-## 📱 Craft Anything Android APK (v0.4.13)
+## 📱 Craft Anything Android APK (v0.4.14)
 
-Official automated Android release build by **RedGlitchX**.
+Official automated Android release build by **RedGlitchX** ([@tubers9999](https://github.com/tubers9999)).
 
-### 🚀 What's New in v0.4.13:
-- **Direct System Clipboard Paste on Android**:
-  - Registered Java Main UI Thread runner (`Looper.getMainLooper()`) via `AndroidApp::run_on_java_main_thread` for all Android clipboard reading & writing operations.
-  - Calling `getPrimaryClip()` on the Java main UI thread guarantees active window focus and eliminates Android 10+ background thread security blocks.
-  - Removed restrictive and unreliable `hasPrimaryClip()` gate that caused OEM clipboard queries to silently fail or return false.
-  - Multi-tier extraction: directly coerces `ClipData.Item` via `coerceToText(Context)`, `getText()`, and URI conversion to plain text.
-  - Tapping **"Paste"** anywhere (Endpoint, API Key, Chat Prompt, Server Address, GitHub Token) now **directly inserts the clipboard text instantly** with zero intermediate popups!
-- **Fixed Soft Keyboard Glitches & Screen Distortion**:
-  - Switched `windowSoftInputMode` from destructive `adjustResize` to stable `adjustPan|stateHidden` in `AndroidManifest.xml`.
-  - Prevents native EGL/Vulkan surface destruction, viewport squishing, and key stroke drops when opening or dismissing the Android soft keyboard.
-- **Enhanced Endpoint URL Editing & Auto-Save**:
-  - Editable Endpoint URL field in backend cards now auto-saves on losing focus / Enter key.
-  - Dedicated "Save" button is always responsive to persist immediate endpoint corrections.
-- **Automatic Model Detection**:
-  - Dedicated "Detect Models" button in "Add AI Server" queries `GET /v1/models` and populates the ComboBox dropdown with available models.
+### 🚀 What's New in v0.4.14:
+- **Background Execution with WakeLock ("Run when not in app")**:
+  - Added `android.permission.WAKE_LOCK`, `android.permission.FOREGROUND_SERVICE`, and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` in `AndroidManifest.xml` and `Cargo.toml`.
+  - Implemented automated JNI `PARTIAL_WAKE_LOCK` acquisition on Android startup. The CPU remains awake and native Rust worker threads continue running builds, downloads, and AI tasks uninterrupted even when the user minimizes the app, switches to other apps, or turns off the screen.
+- **Direct Media & Asset Extraction (No AI Image Generator Required)**:
+  - Revised builder brief and system prompt instructions: builders are now explicitly instructed to extract, copy, or download original images, icons, sprites, audio, video, textures, and assets directly from the target website/game/app/evidence into `app/`.
+  - Builders will no longer demand fal.ai API keys or external AI image generators, nor will they replace images with neutral placeholder gradients/boxes when real media files can be extracted or downloaded directly.
+- **Fixed "Build Stopped After Two Builder Turns" Failure**:
+  - Implemented smart automatic extraction of markdown code blocks into `app/` whenever `app/` has no files yet, ensuring foundational project scaffold files (`index.html`, `style.css`, `main.js`, `package.json`) exist immediately on disk even if a builder model outputted code directly into chat without invoking tool calls.
+  - Fixed fenced tool calls execution in OpenAI/OpenRouter adapter: tool calls with trailing explanation text are no longer dropped or rejected with warning turns.
+  - Updated builder instructions to mandate writing foundational project scaffold files in the very first turn.
+- **Vertical Phone GUI Compatibility & Button Layout Overhaul**:
+  - **Make screen**: On vertical portrait phone screens (< 450px), `Built by` and `Start` button are stacked vertically with `Start` taking full card width and 48px touch height, preventing button clipping and overflow.
+  - **Settings screen**: Endpoint URL input and action buttons wrap with touch-friendly spacing and full-width mobile inputs.
+  - **Chat Prompt Box**: Reserved space for Send and Pause buttons on narrow portrait screens by hiding redundant desktop shortcut hints.
 
 > [!IMPORTANT]
 > **INSTALLATION NOTE:**
-> If you have a previous version installed on your device (v0.4.12, v0.4.11, or earlier), **please uninstall the old app first** before installing this APK! Android blocks package updates when the package structure, native libraries, or signing certificate change (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+> If you have a previous version installed on your device, **please uninstall the old app first** before installing this APK! Android blocks package updates when the package structure, native libraries, or signing certificate change (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
 - **Author & Copyright:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
 - **License:** Dual-licensed MIT / Apache 2.0
@@ -30,4 +30,4 @@ Official automated Android release build by **RedGlitchX**.
 - **Alignment:** 4-byte page aligned (zipalign)
 
 ### ⬇️ Download APK
-- **[craft-anything-andriod.apk](https://github.com/tubers9999/craft-anything-andriod/releases/download/v0.4.13-android/craft-anything-andriod.apk)**
+- **[craft-anything-andriod.apk](https://github.com/tubers9999/craft-anything-andriod/releases/download/v0.4.14-android/craft-anything-andriod.apk)**

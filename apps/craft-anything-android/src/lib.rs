@@ -54,6 +54,9 @@ fn android_main(app: AndroidApp) {
     }));
     log::info!("Registered Java main-thread runner for Android clipboard");
 
+    // Acquire PARTIAL_WAKE_LOCK to prevent CPU sleep when minimized or screen off
+    acquire_wake_lock(&app);
+
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));
 
     // Set internal app directory as working directory and HOME so settings and databases persist properly
@@ -138,6 +141,80 @@ fn android_main(app: AndroidApp) {
     } else {
         log::info!("Craft Anything closed gracefully");
     }
+}
+
+#[cfg(target_os = "android")]
+static WAKE_LOCK: std::sync::Mutex<Option<jni::objects::GlobalRef>> = std::sync::Mutex::new(None);
+
+#[cfg(target_os = "android")]
+fn acquire_wake_lock(app: &AndroidApp) {
+    let ctx = match std::panic::catch_unwind(|| ndk_context::android_context()) {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+    let vm_ptr = ctx.vm();
+    if vm_ptr.is_null() {
+        return;
+    }
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+        let Ok(vm) = jni::JavaVM::from_raw(vm_ptr as *mut jni::sys::JavaVM) else { return };
+        let Ok(mut env) = vm.get_env().or_else(|_| vm.attach_current_thread_permanently()) else { return };
+
+        if env.exception_check().unwrap_or(false) {
+            let _ = env.exception_clear();
+        }
+
+        let act_raw = app.activity_as_ptr() as jni::sys::jobject;
+        let context_obj = if !act_raw.is_null() {
+            jni::objects::JObject::from_raw(act_raw)
+        } else {
+            let app_ptr = ctx.context();
+            if app_ptr.is_null() {
+                return;
+            }
+            jni::objects::JObject::from_raw(app_ptr as jni::sys::jobject)
+        };
+
+        let Ok(service_name) = env.new_string("power") else { return };
+        let Ok(val) = env.call_method(
+            &context_obj,
+            "getSystemService",
+            "(Ljava/lang/String;)Ljava/lang/Object;",
+            &[jni::objects::JValue::Object(&service_name.into())],
+        ) else { return };
+
+        let Ok(pm) = val.l() else { return };
+        if pm.is_null() {
+            return;
+        }
+
+        let Ok(tag) = env.new_string("CraftAnything:BackgroundBuild") else { return };
+        // PARTIAL_WAKE_LOCK = 1
+        let Ok(wl_val) = env.call_method(
+            &pm,
+            "newWakeLock",
+            "(ILjava/lang/String;)Landroid/os/PowerManager$WakeLock;",
+            &[jni::objects::JValue::Int(1), jni::objects::JValue::Object(&tag.into())],
+        ) else { return };
+
+        let Ok(wl) = wl_val.l() else { return };
+        if wl.is_null() {
+            return;
+        }
+
+        // wakeLock.setReferenceCounted(false)
+        let _ = env.call_method(&wl, "setReferenceCounted", "(Z)V", &[jni::objects::JValue::Bool(0)]);
+
+        // wakeLock.acquire()
+        let _ = env.call_method(&wl, "acquire", "()V", &[]);
+
+        if let Ok(global_ref) = env.new_global_ref(wl) {
+            if let Ok(mut lock) = WAKE_LOCK.lock() {
+                *lock = Some(global_ref);
+            }
+            log::info!("Successfully acquired Android PARTIAL_WAKE_LOCK (background execution enabled)");
+        }
+    }));
 }
 
 /// Fallback / placeholder for non-Android targets (e.g. host cargo check/clippy).

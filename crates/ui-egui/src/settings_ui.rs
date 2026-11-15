@@ -503,13 +503,13 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
                         let is_changed = endpoint_text.trim() != saved_endpoint;
                         ui.add_space(4.0);
                         ui.label(RichText::new(tr("Endpoint URL")).size(theme::CAPTION).color(t.text_dim));
-                        ui.horizontal(|ui| {
-                            let w = (ui.available_width() - 110.0).max(100.0);
+                        let is_mobile = ui.available_width() < 420.0;
+                        if is_mobile {
                             let r = ui.add(
                                 egui::TextEdit::singleline(&mut endpoint_text)
                                     .id(id)
                                     .hint_text("http://192.168.1.20:11434/v1")
-                                    .desired_width(w)
+                                    .desired_width(ui.available_width())
                                     .frame(widgets::text_field_frame_compact(&t)),
                             );
                             if r.changed() {
@@ -518,13 +518,39 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
                             if r.lost_focus() && is_changed {
                                 save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
                             }
-                            if icons::button(ui, "clipboard-list", 26.0, false, "Paste endpoint").clicked() {
-                                paste_endpoint = Some(b.name.clone());
-                            }
-                            if widgets::primary_icon(ui, Some("check"), "Save", true).clicked() {
-                                save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
-                            }
-                        });
+                            ui.add_space(4.0);
+                            ui.horizontal(|ui| {
+                                if icons::button(ui, "clipboard-list", 30.0, false, "Paste endpoint").clicked() {
+                                    paste_endpoint = Some(b.name.clone());
+                                }
+                                if widgets::primary_icon(ui, Some("check"), "Save", true).clicked() {
+                                    save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
+                                }
+                            });
+                        } else {
+                            ui.horizontal(|ui| {
+                                let w = (ui.available_width() - 110.0).max(100.0);
+                                let r = ui.add(
+                                    egui::TextEdit::singleline(&mut endpoint_text)
+                                        .id(id)
+                                        .hint_text("http://192.168.1.20:11434/v1")
+                                        .desired_width(w)
+                                        .frame(widgets::text_field_frame_compact(&t)),
+                                );
+                                if r.changed() {
+                                    app.endpoint_drafts.insert(b.name.clone(), endpoint_text.clone());
+                                }
+                                if r.lost_focus() && is_changed {
+                                    save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
+                                }
+                                if icons::button(ui, "clipboard-list", 26.0, false, "Paste endpoint").clicked() {
+                                    paste_endpoint = Some(b.name.clone());
+                                }
+                                if widgets::primary_icon(ui, Some("check"), "Save", true).clicked() {
+                                    save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
+                                }
+                            });
+                        }
                         ui.add_space(2.0);
                     }
                     // How hard it thinks: the Claude API and Claude Code take every Claude level.
@@ -672,7 +698,7 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
             });
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
-                ui.add_space(26.0);
+                ui.add_space(if ui.available_width() < 420.0 { 2.0 } else { 26.0 });
                 if app.state.backend.as_ref() == Some(&b.name) {
                     widgets::pill(ui, "In use", t.on_accent, t.accent);
                 } else if widgets::secondary(ui, None, "Use").clicked() {
