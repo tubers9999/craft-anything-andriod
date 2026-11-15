@@ -515,10 +515,13 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
                             if r.changed() {
                                 app.endpoint_drafts.insert(b.name.clone(), endpoint_text.clone());
                             }
+                            if r.lost_focus() && is_changed {
+                                save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
+                            }
                             if icons::button(ui, "clipboard-list", 26.0, false, "Paste endpoint").clicked() {
                                 paste_endpoint = Some(b.name.clone());
                             }
-                            if widgets::primary_icon(ui, Some("check"), "Save", is_changed).clicked() && is_changed {
+                            if widgets::primary_icon(ui, Some("check"), "Save", true).clicked() {
                                 save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
                             }
                         });

@@ -1,9 +1,24 @@
 //! System clipboard reading & writing helper with Android and Termux support.
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 static IN_MEMORY_CLIPBOARD: Mutex<Option<String>> = Mutex::new(None);
 static ANDROID_ACTIVITY: Mutex<Option<usize>> = Mutex::new(None);
+
+pub type MainThreadRunner = Arc<dyn Fn(Box<dyn FnOnce() + Send>) + Send + Sync>;
+static MAIN_THREAD_RUNNER: Mutex<Option<MainThreadRunner>> = Mutex::new(None);
+
+/// Register a closure that executes tasks on the Android Java main UI thread (Looper.getMainLooper).
+pub fn set_main_thread_runner(runner: MainThreadRunner) {
+    if let Ok(mut g) = MAIN_THREAD_RUNNER.lock() {
+        *g = Some(runner);
+    }
+}
+
+/// Retrieve the active main-thread runner if registered.
+pub fn get_main_thread_runner() -> Option<MainThreadRunner> {
+    MAIN_THREAD_RUNNER.lock().ok().and_then(|g| g.clone())
+}
 
 /// Set text in the internal application clipboard cache.
 pub fn set_in_memory_clipboard(text: &str) {
@@ -65,9 +80,32 @@ pub fn get_text() -> Option<String> {
     get_in_memory_clipboard()
 }
 
-/// Read clipboard text directly from Android system ClipboardManager via JNI.
+/// Read clipboard text directly on Android, marshaling to the Java main thread if available.
 #[cfg(target_os = "android")]
 fn get_android_clipboard() -> Option<String> {
+    // 1. If Java main-thread runner is registered, query on main UI thread with active window focus
+    if let Some(runner) = get_main_thread_runner() {
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        runner(Box::new(move || {
+            let res = read_clipboard_jni();
+            let _ = tx.send(res);
+        }));
+        if let Ok(result) = rx.recv_timeout(std::time::Duration::from_millis(600)) {
+            if let Some(text) = result {
+                if !text.trim().is_empty() {
+                    return Some(text);
+                }
+            }
+        }
+    }
+
+    // 2. Direct fallback on current thread
+    read_clipboard_jni()
+}
+
+/// Low-level JNI clipboard reader inspecting all candidate contexts.
+#[cfg(target_os = "android")]
+fn read_clipboard_jni() -> Option<String> {
     let ctx = match std::panic::catch_unwind(|| ndk_context::android_context()) {
         Ok(c) => c,
         Err(_) => return None,
@@ -133,17 +171,7 @@ fn get_android_clipboard() -> Option<String> {
                 continue;
             }
 
-            // Check if there is primary clip
-            let has_clip = env.call_method(&cm_val, "hasPrimaryClip", "()Z", &[]);
-            if env.exception_check().unwrap_or(false) {
-                let _ = env.exception_clear();
-            } else if let Ok(val) = has_clip.and_then(|v| v.z()) {
-                if !val {
-                    continue;
-                }
-            }
-
-            // Attempt getPrimaryClip directly
+            // Directly query getPrimaryClip (skip redundant hasPrimaryClip check)
             let clip = env.call_method(&cm_val, "getPrimaryClip", "()Landroid/content/ClipData;", &[]);
             if env.exception_check().unwrap_or(false) {
                 let _ = env.exception_clear();
@@ -185,28 +213,40 @@ fn get_android_clipboard() -> Option<String> {
                 continue;
             }
 
-            // 1. Try item.getText() first (no Context required)
+            // 1. Try coerceToText(context) first
             let mut text_cs_obj = None;
-            let text_call = env.call_method(&item_val, "getText", "()Ljava/lang/CharSequence;", &[]);
+            let coerce_call = env.call_method(
+                &item_val,
+                "coerceToText",
+                "(Landroid/content/Context;)Ljava/lang/CharSequence;",
+                &[jni::objects::JValue::Object(&context_obj)],
+            );
             if env.exception_check().unwrap_or(false) {
                 let _ = env.exception_clear();
-            } else if let Ok(val) = text_call.and_then(|v| v.l()) {
+            } else if let Ok(val) = coerce_call.and_then(|v| v.l()) {
                 if !val.is_null() {
                     text_cs_obj = Some(val);
                 }
             }
 
-            // 2. Fall back to item.coerceToText(context)
+            // 2. Fall back to getText()
             if text_cs_obj.is_none() {
-                let coerce_call = env.call_method(
-                    &item_val,
-                    "coerceToText",
-                    "(Landroid/content/Context;)Ljava/lang/CharSequence;",
-                    &[jni::objects::JValue::Object(&context_obj)],
-                );
+                let text_call = env.call_method(&item_val, "getText", "()Ljava/lang/CharSequence;", &[]);
                 if env.exception_check().unwrap_or(false) {
                     let _ = env.exception_clear();
-                } else if let Ok(val) = coerce_call.and_then(|v| v.l()) {
+                } else if let Ok(val) = text_call.and_then(|v| v.l()) {
+                    if !val.is_null() {
+                        text_cs_obj = Some(val);
+                    }
+                }
+            }
+
+            // 3. Fall back to getUri()
+            if text_cs_obj.is_none() {
+                let uri_call = env.call_method(&item_val, "getUri", "()Landroid/net/Uri;", &[]);
+                if env.exception_check().unwrap_or(false) {
+                    let _ = env.exception_clear();
+                } else if let Ok(val) = uri_call.and_then(|v| v.l()) {
                     if !val.is_null() {
                         text_cs_obj = Some(val);
                     }
@@ -239,6 +279,19 @@ fn get_android_clipboard() -> Option<String> {
 /// Set clipboard text directly on Android system ClipboardManager via JNI.
 #[cfg(target_os = "android")]
 fn set_android_clipboard(text: &str) {
+    let text_owned = text.to_string();
+    if let Some(runner) = get_main_thread_runner() {
+        let t = text_owned.clone();
+        runner(Box::new(move || {
+            write_clipboard_jni(&t);
+        }));
+    }
+    write_clipboard_jni(&text_owned);
+}
+
+/// Low-level JNI clipboard writer.
+#[cfg(target_os = "android")]
+fn write_clipboard_jni(text: &str) {
     let ctx = match std::panic::catch_unwind(|| ndk_context::android_context()) {
         Ok(c) => c,
         Err(_) => return,

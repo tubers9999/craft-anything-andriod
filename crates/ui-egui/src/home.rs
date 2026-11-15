@@ -209,6 +209,11 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                     if !ui.data(|d| d.get_temp::<bool>(opened).unwrap_or(false)) {
                         r.request_focus();
                         ui.data_mut(|d| d.insert_temp(opened, true));
+                        if app.state.paste_input.is_empty() {
+                            if let Some(txt) = crate::clipboard::get_text() {
+                                app.state.paste_input = txt;
+                            }
+                        }
                     }
                     ui.add_space(12.0);
                     ui.horizontal(|ui| {

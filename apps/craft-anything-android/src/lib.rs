@@ -45,6 +45,13 @@ fn android_main(app: AndroidApp) {
     craft_anything_ui_egui::clipboard::set_android_activity(act_ptr);
     log::info!("Stored Android NativeActivity reference for JNI clipboard access");
 
+    // Register Java main-thread runner for guaranteed clipboard & focus operations
+    let app_runner = app.clone();
+    craft_anything_ui_egui::clipboard::set_main_thread_runner(std::sync::Arc::new(move |f| {
+        app_runner.run_on_java_main_thread(f);
+    }));
+    log::info!("Registered Java main-thread runner for Android clipboard");
+
     log::info!("Craft Anything starting on Android (v{})", env!("CARGO_PKG_VERSION"));
 
     // Set internal app directory as working directory and HOME so settings and databases persist properly

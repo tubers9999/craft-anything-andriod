@@ -1,32 +1,26 @@
-## 📱 Craft Anything Android APK (v0.4.12)
+## 📱 Craft Anything Android APK (v0.4.13)
 
 Official automated Android release build by **RedGlitchX**.
 
-### 🚀 What's New in v0.4.12:
-- **Automatic Model Detection for Endpoints & Servers**:
-  - Added dedicated **"Detect Models"** button in the "Add an AI by its address" form.
-  - Automatically queries `GET /v1/models` on the server endpoint (supporting OpenAI-compatible, Ollama, LM Studio, vLLM, LocalAI, DeepSeek, etc.) and lists all available models in an interactive dropdown selector.
-  - Automatically selects the optimal chat model or first available model on detection, eliminating the need to type complex model identifiers on mobile keyboards.
-  - Auto-fills the server name based on host/address if left blank.
-  - Enhanced server validation to prevent strict chat-model name filtering from rejecting valid custom models.
-- **Editable Endpoint URLs for Existing Backends**:
-  - Added editable **"Endpoint URL"** field for every AI backend card in Settings ("Your brains").
-  - Easily update or correct a backend's base URL / server address without deleting the backend and starting over.
-  - Includes dedicated **"Paste endpoint"** and **"Save"** actions with live persistence and feedback.
-  - Updating an endpoint immediately updates model catalog lookups when changing models.
-- **Guaranteed Clipboard Paste on Android**:
-  - Fixed Android JNI clipboard bridge by eliminating non-main-thread Looper issues and integrating multi-tier Context resolution (`NativeActivity`, `Application`, `ActivityThread.currentApplication`).
-  - Added active `hasPrimaryClip()` inspection before extracting clip items.
-  - Unblocked fallback paste input: tapping "Paste" anywhere in Settings or in the app will now **always** let you paste or type directly via an in-dialog input if the Android OS restricts background clipboard access.
-  - Added **"From Clipboard"** action inside the paste dialog to easily capture copied text from Gboard or the system clipboard without losing Settings context.
-- **All Previous Mobile Enhancements (v0.4.11 / v0.4.10)**:
-  - Preserved Settings modal state during keyboard resize and touch events.
-  - GitHub cloud builder integration for remote compilation of APKs, EXEs, and Web games.
-  - Aligned native libraries (`extractNativeLibs="true"`) and v1 + v2 + v3 APK signing.
+### 🚀 What's New in v0.4.13:
+- **Direct System Clipboard Paste on Android**:
+  - Registered Java Main UI Thread runner (`Looper.getMainLooper()`) via `AndroidApp::run_on_java_main_thread` for all Android clipboard reading & writing operations.
+  - Calling `getPrimaryClip()` on the Java main UI thread guarantees active window focus and eliminates Android 10+ background thread security blocks.
+  - Removed restrictive and unreliable `hasPrimaryClip()` gate that caused OEM clipboard queries to silently fail or return false.
+  - Multi-tier extraction: directly coerces `ClipData.Item` via `coerceToText(Context)`, `getText()`, and URI conversion to plain text.
+  - Tapping **"Paste"** anywhere (Endpoint, API Key, Chat Prompt, Server Address, GitHub Token) now **directly inserts the clipboard text instantly** with zero intermediate popups!
+- **Fixed Soft Keyboard Glitches & Screen Distortion**:
+  - Switched `windowSoftInputMode` from destructive `adjustResize` to stable `adjustPan|stateHidden` in `AndroidManifest.xml`.
+  - Prevents native EGL/Vulkan surface destruction, viewport squishing, and key stroke drops when opening or dismissing the Android soft keyboard.
+- **Enhanced Endpoint URL Editing & Auto-Save**:
+  - Editable Endpoint URL field in backend cards now auto-saves on losing focus / Enter key.
+  - Dedicated "Save" button is always responsive to persist immediate endpoint corrections.
+- **Automatic Model Detection**:
+  - Dedicated "Detect Models" button in "Add AI Server" queries `GET /v1/models` and populates the ComboBox dropdown with available models.
 
 > [!IMPORTANT]
 > **INSTALLATION NOTE:**
-> If you have a previous version installed on your device (v0.4.11, v0.4.10, or earlier), **please uninstall the old app first** before installing this APK! Android blocks package updates when the package structure, native libraries, or signing certificate change (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
+> If you have a previous version installed on your device (v0.4.12, v0.4.11, or earlier), **please uninstall the old app first** before installing this APK! Android blocks package updates when the package structure, native libraries, or signing certificate change (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`).
 
 - **Author & Copyright:** RedGlitchX ([@tubers9999](https://github.com/tubers9999))
 - **License:** Dual-licensed MIT / Apache 2.0
@@ -36,4 +30,4 @@ Official automated Android release build by **RedGlitchX**.
 - **Alignment:** 4-byte page aligned (zipalign)
 
 ### ⬇️ Download APK
-- **[craft-anything-andriod.apk](https://github.com/tubers9999/craft-anything-andriod/releases/download/v0.4.12-android/craft-anything-andriod.apk)**
+- **[craft-anything-andriod.apk](https://github.com/tubers9999/craft-anything-andriod/releases/download/v0.4.13-android/craft-anything-andriod.apk)**
