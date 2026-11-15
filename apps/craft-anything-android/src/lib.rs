@@ -48,7 +48,9 @@ fn android_main(app: AndroidApp) {
     // Register Java main-thread runner for guaranteed clipboard & focus operations
     let app_runner = app.clone();
     craft_anything_ui_egui::clipboard::set_main_thread_runner(std::sync::Arc::new(move |f| {
-        app_runner.run_on_java_main_thread(f);
+        app_runner.run_on_java_main_thread(Box::new(move || {
+            f();
+        }));
     }));
     log::info!("Registered Java main-thread runner for Android clipboard");
 
