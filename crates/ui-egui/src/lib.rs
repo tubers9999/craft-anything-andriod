@@ -237,6 +237,9 @@ pub enum Done {
         /// `CraftApp::backend_choices` when the add started: a choice made since then stands.
         choices: u64,
     },
+    ServerModelsDetected {
+        result: Result<Vec<String>, ToolError>,
+    },
     /// The projects folder was listed.
     Projects(Vec<craft_anything_engine::workspace::Workspace>),
     /// A new project's folder was made (see `CraftApp::start_make`).
@@ -280,6 +283,9 @@ pub struct ServerForm {
     /// Empty: the first model it lists that can chat.
     pub model: String,
     pub key: String,
+    pub detected_models: Vec<String>,
+    pub detecting_models: bool,
+    pub detect_error: Option<String>,
 }
 
 /// What a file dialog was for.
@@ -461,6 +467,8 @@ pub struct CraftApp {
     /// Settings → AI's "Add an AI by its address" form. Not kept with the UI state: its key goes
     /// only to the keychain.
     pub server_form: ServerForm,
+    /// Draft endpoints being edited in Settings → AI (backend name → endpoint URL).
+    pub endpoint_drafts: std::collections::HashMap<String, String>,
     /// Every project's rebuild in this window: working, waiting their turn, or finished.
     pub runs: craft_anything_ai::rebuild::RunSet,
     /// What was typed for each note still waiting for a builder, by note id, to put back in the
@@ -577,6 +585,7 @@ impl CraftApp {
             log: Vec::new(),
             key_inputs: Default::default(),
             server_form: ServerForm::default(),
+            endpoint_drafts: Default::default(),
             runs: craft_anything_ai::rebuild::RunSet::new(craft_anything_engine::settings::BuildSettings::default().parallel),
             drafts: Default::default(),
             pending_paste: None,
@@ -754,6 +763,10 @@ impl CraftApp {
             crate::state::PasteTarget::MakeUrl => self.state.make.url = val,
             crate::state::PasteTarget::ServerAddress => self.server_form.address = val,
             crate::state::PasteTarget::ServerKey => self.server_form.key = val,
+            crate::state::PasteTarget::ServerModel => self.server_form.model = val,
+            crate::state::PasteTarget::Endpoint(backend_name) => {
+                self.endpoint_drafts.insert(backend_name, val);
+            }
             crate::state::PasteTarget::AiKey(name) => {
                 self.key_inputs.insert(name, val);
             }
@@ -797,13 +810,9 @@ impl CraftApp {
                 return;
             }
         }
-        if self.state.settings_open {
-            self.toast(crate::i18n::tr("Clipboard is empty. Copy text first or type directly."), true);
-        } else {
-            let return_to = self.state.modal.take().map(Box::new);
-            self.state.paste_input.clear();
-            self.state.modal = Some(crate::state::Modal::PasteInput { target, return_to });
-        }
+        let return_to = self.state.modal.take().map(Box::new);
+        self.state.paste_input.clear();
+        self.state.modal = Some(crate::state::Modal::PasteInput { target, return_to });
     }
 
     pub fn has_tool(&self, id: &str) -> bool {
@@ -1688,6 +1697,37 @@ impl CraftApp {
                     self.refresh_backends();
                 }
                 Err(e) => self.toast(e.for_people(), true),
+            },
+            Done::ServerModelsDetected { result } => {
+                self.server_form.detecting_models = false;
+                match result {
+                    Ok(models) => {
+                        if models.is_empty() {
+                            self.server_form.detect_error = Some(i18n::tr("No models returned by server."));
+                        } else {
+                            self.server_form.detect_error = None;
+                            self.server_form.detected_models = models.clone();
+                            if self.server_form.model.trim().is_empty() {
+                                let picked = craft_anything_ai::detect::chat_model(&models).unwrap_or_else(|| models[0].clone());
+                                self.server_form.model = picked;
+                            }
+                            if self.server_form.name.trim().is_empty() {
+                                let name_guess = self.server_form.address
+                                    .trim_start_matches("http://")
+                                    .trim_start_matches("https://")
+                                    .split(&[':', '/', '?'][..])
+                                    .next()
+                                    .unwrap_or("Server");
+                                self.server_form.name = format!("AI ({name_guess})");
+                            }
+                            self.toast(i18n::trf("Detected {count} model(s)", &[("count", &models.len().to_string())]), false);
+                        }
+                    }
+                    Err(e) => {
+                        self.server_form.detect_error = Some(e.for_people());
+                        self.toast(e.for_people(), true);
+                    }
+                }
             },
             Done::Picked { pick, path } => self.on_picked(pick, path),
             Done::Pictures(files) => self.add_pictures(files),

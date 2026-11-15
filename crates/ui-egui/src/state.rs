@@ -410,11 +410,13 @@ pub enum PasteTarget {
     MakeUrl,
     ServerAddress,
     ServerKey,
+    ServerModel,
     AiKey(String),
     AssetKey(String),
     Prompt,
     GitHubToken,
     GitHubRepo,
+    Endpoint(String),
 }
 
 /// The command palette.

@@ -424,6 +424,7 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
     let mut chosen_effort = None;
     let (mut pick_agent_model, mut chosen_agent_model, mut remote_program) = (None, None, None);
     let (mut tune_models, mut save_tuning) = (Vec::new(), None);
+    let (mut save_endpoint, mut paste_endpoint) = (None, None);
     // The AI whose Remove was pressed once: asked again before its key is deleted.
     let confirm_id = egui::Id::new("remove-ai");
     let confirming: Option<String> = ui.data(|d| d.get_temp(confirm_id));
@@ -493,6 +494,35 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
                             save_folder = Some((b.name.clone(), text.trim().to_string()));
                         }
                         ui.add_space(4.0);
+                    }
+                    // Endpoint URL (base_url) for OpenAI-compatible, Anthropic, or any API server
+                    if b.kind != BackendKind::AgentCli || b.base_url.is_some() {
+                        let saved_endpoint = b.base_url.clone().unwrap_or_default();
+                        let id = egui::Id::new(("backend-endpoint", &b.name));
+                        let mut endpoint_text = app.endpoint_drafts.get(&b.name).cloned().unwrap_or_else(|| saved_endpoint.clone());
+                        let is_changed = endpoint_text.trim() != saved_endpoint;
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(tr("Endpoint URL")).size(theme::CAPTION).color(t.text_dim));
+                        ui.horizontal(|ui| {
+                            let w = (ui.available_width() - 110.0).max(100.0);
+                            let r = ui.add(
+                                egui::TextEdit::singleline(&mut endpoint_text)
+                                    .id(id)
+                                    .hint_text("http://192.168.1.20:11434/v1")
+                                    .desired_width(w)
+                                    .frame(widgets::text_field_frame_compact(&t)),
+                            );
+                            if r.changed() {
+                                app.endpoint_drafts.insert(b.name.clone(), endpoint_text.clone());
+                            }
+                            if icons::button(ui, "clipboard-list", 26.0, false, "Paste endpoint").clicked() {
+                                paste_endpoint = Some(b.name.clone());
+                            }
+                            if widgets::primary_icon(ui, Some("check"), "Save", is_changed).clicked() && is_changed {
+                                save_endpoint = Some((b.name.clone(), endpoint_text.trim().to_string()));
+                            }
+                        });
+                        ui.add_space(2.0);
                     }
                     // How hard it thinks: the Claude API and Claude Code take every Claude level.
                     let effort = craft_anything_ai::effort_in_use(b, app.backend_options.get(&b.name));
@@ -707,6 +737,15 @@ fn ai(app: &mut CraftApp, ui: &mut Ui) {
     if let Some((name, folder)) = save_folder {
         app.set_agent_folder(&name, Some(folder));
     }
+    if let Some((name, new_url)) = save_endpoint {
+        let opt = if new_url.is_empty() { None } else { Some(new_url) };
+        app.set_backend_endpoint(&name, opt);
+        app.endpoint_drafts.remove(&name);
+        app.toast(crate::i18n::tr("Endpoint updated"), false);
+    }
+    if let Some(name) = paste_endpoint {
+        app.paste_into(crate::state::PasteTarget::Endpoint(name));
+    }
     if let Some(name) = pick_model {
         app.pick_model(&name);
     }
@@ -873,6 +912,7 @@ pub(crate) fn server_form(app: &mut CraftApp, ui: &mut Ui) {
     let is_mobile = ui.available_width() < 460.0;
     let mut paste_target = None;
     let mut add = false;
+    let mut detect_models = false;
 
     if is_mobile {
         let form = &mut app.server_form;
@@ -891,8 +931,48 @@ pub(crate) fn server_form(app: &mut CraftApp, ui: &mut Ui) {
             });
             ui.add_space(4.0);
 
+            let has_addr = !form.address.trim().is_empty();
+            ui.horizontal(|ui| {
+                if form.detecting_models {
+                    ui.add(crate::widgets::Spinner::new().size(theme::CAPTION).color(t.accent));
+                    ui.label(RichText::new(tr("Detecting models…")).color(t.text_faint).size(theme::CAPTION));
+                } else {
+                    if widgets::secondary(ui, Some("refresh-cw"), "Detect Models").clicked() && has_addr {
+                        detect_models = true;
+                    }
+                    if !form.detected_models.is_empty() {
+                        ui.label(RichText::new(trf("{count} model(s) found", &[("count", &form.detected_models.len().to_string())])).color(t.accent).size(theme::CAPTION));
+                    }
+                }
+            });
+            if let Some(err) = &form.detect_error {
+                ui.add_space(2.0);
+                ui.add(egui::Label::new(RichText::new(err).color(t.danger).size(theme::CAPTION)).wrap());
+            }
+            ui.add_space(4.0);
+
             ui.label(RichText::new(tr("Model (optional)")).size(theme::CAPTION).color(t.text_dim));
-            ui.add(egui::TextEdit::singleline(&mut form.model).hint_text(tr("model (optional)")).desired_width(ui.available_width()).frame(widgets::text_field_frame_compact(&t)));
+            if !form.detected_models.is_empty() {
+                egui::ComboBox::from_id_salt("detected-models-combo-mobile")
+                    .icon(widgets::combo_icon)
+                    .selected_text(if form.model.is_empty() { tr("Select a detected model…") } else { form.model.clone() })
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        for m in &form.detected_models {
+                            if ui.selectable_label(form.model == *m, m).clicked() {
+                                form.model = m.clone();
+                            }
+                        }
+                    });
+                ui.add_space(2.0);
+            }
+            ui.horizontal(|ui| {
+                let w = (ui.available_width() - 36.0).max(100.0);
+                ui.add(egui::TextEdit::singleline(&mut form.model).hint_text(tr("model (optional)")).desired_width(w).frame(widgets::text_field_frame_compact(&t)));
+                if icons::button(ui, "clipboard-list", 28.0, false, "Paste model").clicked() {
+                    paste_target = Some(crate::state::PasteTarget::ServerModel);
+                }
+            });
             ui.add_space(4.0);
 
             ui.label(RichText::new(tr("API key")).size(theme::CAPTION).color(t.text_dim));
@@ -919,15 +999,40 @@ pub(crate) fn server_form(app: &mut CraftApp, ui: &mut Ui) {
         };
         ui.horizontal(|ui| {
             field(ui, &mut form.name, "name, e.g. Studio box", 140.0, "AI name", false);
-            let w = (ui.available_width() - FRAME - 36.0).max(120.0);
+            let w = (ui.available_width() - FRAME - 170.0).max(120.0);
             field(ui, &mut form.address, "address, e.g. http://192.168.1.20:11434/v1", w, "Server address", false);
             if icons::button(ui, "clipboard-list", 26.0, false, "Paste address").clicked() {
                 paste_target = Some(crate::state::PasteTarget::ServerAddress);
             }
+            let has_addr = !form.address.trim().is_empty();
+            if form.detecting_models {
+                ui.add(crate::widgets::Spinner::new().size(theme::CAPTION).color(t.accent));
+            } else if widgets::secondary(ui, Some("refresh-cw"), "Detect Models").clicked() && has_addr {
+                detect_models = true;
+            }
         });
+        if let Some(err) = &form.detect_error {
+            ui.add(egui::Label::new(RichText::new(err).color(t.danger).size(theme::CAPTION)).wrap());
+        }
         let ready = !form.name.trim().is_empty() && !form.address.trim().is_empty();
         ui.horizontal(|ui| {
+            if !form.detected_models.is_empty() {
+                egui::ComboBox::from_id_salt("detected-models-combo-desktop")
+                    .icon(widgets::combo_icon)
+                    .selected_text(if form.model.is_empty() { tr("Select model…") } else { form.model.clone() })
+                    .width(160.0)
+                    .show_ui(ui, |ui| {
+                        for m in &form.detected_models {
+                            if ui.selectable_label(form.model == *m, m).clicked() {
+                                form.model = m.clone();
+                            }
+                        }
+                    });
+            }
             field(ui, &mut form.model, "model (optional)", 140.0, "Model", false);
+            if icons::button(ui, "clipboard-list", 26.0, false, "Paste model").clicked() {
+                paste_target = Some(crate::state::PasteTarget::ServerModel);
+            }
             let w = (ui.available_width() - FRAME - 120.0).max(100.0);
             field(ui, &mut form.key, "API key, if it needs one", w, "API key", true);
             if icons::button(ui, "clipboard-list", 26.0, false, "Paste API key").clicked() {
@@ -935,6 +1040,9 @@ pub(crate) fn server_form(app: &mut CraftApp, ui: &mut Ui) {
             }
             add = widgets::primary_icon(ui, Some("plus"), "Add", ready).clicked() && ready;
         });
+    }
+    if detect_models {
+        app.detect_server_models();
     }
     if let Some(target) = paste_target {
         app.paste_into(target);

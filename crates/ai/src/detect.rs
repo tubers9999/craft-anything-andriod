@@ -101,7 +101,7 @@ pub fn port_open(base_url: &str, timeout: Duration) -> bool {
 const NOT_CHAT: &[&str] = &["embed", "embedding", "embeddings", "embeddinggemma", "minilm", "bge", "rerank", "reranker", "whisper", "tts", "xtts"];
 
 /// The first model a server lists that can chat. A specialised model isn't a chat fallback.
-pub(crate) fn chat_model(models: &[String]) -> Option<String> {
+pub fn chat_model(models: &[String]) -> Option<String> {
     let specialised =
         |name: &str| name.split(|c: char| !c.is_ascii_alphanumeric()).any(|token| NOT_CHAT.contains(&token.trim_end_matches(|c: char| c.is_ascii_digit())));
     let chats = |m: &&String| {

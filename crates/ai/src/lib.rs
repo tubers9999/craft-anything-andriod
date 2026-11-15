@@ -510,16 +510,33 @@ impl AiHub {
                         "Check the address (it usually ends in /v1), that the server is running and can be reached from this computer, and its key if it needs one. ({why})"
                     ))
                 })?;
-                detect::chat_model(&models).ok_or_else(|| {
-                    let reason = if models.is_empty() { "has no models yet" } else { "doesn't list a model that can chat" };
+                detect::chat_model(&models).or_else(|| models.first().cloned()).ok_or_else(|| {
+                    let reason = if models.is_empty() { "has no models yet" } else { "doesn't list any models" };
                     ToolError::new(ErrorCode::NotFound, format!("{address} {reason}."))
-                        .with_remediation("Load a chat model on the server first, or enter the name of a chat model you know is available.")
+                        .with_remediation("Load a model on the server first, or enter the name of a model you know is available.")
                 })?
             }
         };
         let config = BackendConfig { name: name.to_string(), kind, model: model.clone(), base_url: Some(address.to_string()), ssh_host: None, enabled: true };
         self.add_backend(config, key)?;
         Ok(model)
+    }
+
+    /// List models from an arbitrary server address before adding it, for automatic model detection.
+    pub fn list_server_models(&self, address: &str, key: Option<&str>) -> Result<Vec<String>, ToolError> {
+        let address = address.trim().trim_end_matches('/');
+        if !(address.starts_with("http://") || address.starts_with("https://")) {
+            return Err(ToolError::invalid(format!("{address:?} isn't a web address."))
+                .with_remediation("Give the server's address, like http://192.168.1.20:11434/v1."));
+        }
+        let key = key.map(str::trim).filter(|k| !k.is_empty()).map(str::to_string);
+        let t = Duration::from_secs(10);
+        if anthropic::is_anthropic_api(address) {
+            anthropic::Anthropic::new(Some(address), key.unwrap_or_default(), "").list_models(t)
+        } else {
+            let probe = if openai::is_opencode_go(address) { opencode_go_models_base(address) } else { address.to_string() };
+            openai::OpenAi::compatible("probe", &probe, key, "").list_models(t)
+        }
     }
 
     /// Like [`AiHub::add_backend`], with options.
@@ -623,6 +640,19 @@ impl AiHub {
             }
             _ => b.config.model = model.to_string(),
         }
+        self.save_config(&cfg)?;
+        Ok(true)
+    }
+
+    /// Change the server endpoint / base URL for an existing backend.
+    pub fn set_base_url(&self, name: &str, base_url: Option<&str>) -> Result<bool, ToolError> {
+        let mut cfg = self.config_to_change()?;
+        let Some(b) = cfg.backends.iter_mut().find(|b| b.config.name == name) else { return Ok(false) };
+        let new_url = base_url.map(str::trim).filter(|u| !u.is_empty()).map(str::to_string);
+        if b.config.base_url == new_url {
+            return Ok(false);
+        }
+        b.config.base_url = new_url;
         self.save_config(&cfg)?;
         Ok(true)
     }

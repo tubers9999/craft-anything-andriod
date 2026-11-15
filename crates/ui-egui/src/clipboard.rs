@@ -87,20 +87,6 @@ fn get_android_clipboard() -> Option<String> {
             let _ = env.exception_clear();
         }
 
-        if let Ok(looper_class) = env.find_class("android/os/Looper") {
-            let my_looper = env.call_static_method(&looper_class, "myLooper", "()Landroid/os/Looper;", &[]);
-            let needs_prepare = match my_looper {
-                Ok(val) => val.l().map_or(true, |obj| obj.is_null()),
-                Err(_) => true,
-            };
-            if needs_prepare {
-                let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
-            }
-        }
-        if env.exception_check().unwrap_or(false) {
-            let _ = env.exception_clear();
-        }
-
         let Ok(service_name) = env.new_string("clipboard") else { return None };
 
         let mut contexts = Vec::new();
@@ -111,7 +97,22 @@ fn get_android_clipboard() -> Option<String> {
         }
         let app_ptr = ctx.context();
         if !app_ptr.is_null() {
-            contexts.push(jni::objects::JObject::from_raw(app_ptr as jni::sys::jobject));
+            let raw = app_ptr as jni::sys::jobject;
+            if !contexts.iter().any(|c| c.as_raw() == raw) {
+                contexts.push(jni::objects::JObject::from_raw(raw));
+            }
+        }
+        if let Ok(at_class) = env.find_class("android/app/ActivityThread") {
+            if let Ok(app_val) = env.call_static_method(&at_class, "currentApplication", "()Landroid/app/Application;", &[]) {
+                if let Ok(app_obj) = app_val.l() {
+                    if !app_obj.is_null() && !contexts.iter().any(|c| c.as_raw() == app_obj.as_raw()) {
+                        contexts.push(app_obj);
+                    }
+                }
+            }
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            }
         }
 
         for context_obj in contexts {
@@ -130,6 +131,16 @@ fn get_android_clipboard() -> Option<String> {
             };
             if cm_val.is_null() {
                 continue;
+            }
+
+            // Check if there is primary clip
+            let has_clip = env.call_method(&cm_val, "hasPrimaryClip", "()Z", &[]);
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            } else if let Ok(val) = has_clip.and_then(|v| v.z()) {
+                if !val {
+                    continue;
+                }
             }
 
             // Attempt getPrimaryClip directly
@@ -250,20 +261,6 @@ fn set_android_clipboard(text: &str) {
             let _ = env.exception_clear();
         }
 
-        if let Ok(looper_class) = env.find_class("android/os/Looper") {
-            let my_looper = env.call_static_method(&looper_class, "myLooper", "()Landroid/os/Looper;", &[]);
-            let needs_prepare = match my_looper {
-                Ok(val) => val.l().map_or(true, |obj| obj.is_null()),
-                Err(_) => true,
-            };
-            if needs_prepare {
-                let _ = env.call_static_method(&looper_class, "prepare", "()V", &[]);
-            }
-        }
-        if env.exception_check().unwrap_or(false) {
-            let _ = env.exception_clear();
-        }
-
         let Ok(service_name) = env.new_string("clipboard") else { return };
 
         let mut contexts = Vec::new();
@@ -274,7 +271,22 @@ fn set_android_clipboard(text: &str) {
         }
         let app_ptr = ctx.context();
         if !app_ptr.is_null() {
-            contexts.push(jni::objects::JObject::from_raw(app_ptr as jni::sys::jobject));
+            let raw = app_ptr as jni::sys::jobject;
+            if !contexts.iter().any(|c| c.as_raw() == raw) {
+                contexts.push(jni::objects::JObject::from_raw(raw));
+            }
+        }
+        if let Ok(at_class) = env.find_class("android/app/ActivityThread") {
+            if let Ok(app_val) = env.call_static_method(&at_class, "currentApplication", "()Landroid/app/Application;", &[]) {
+                if let Ok(app_obj) = app_val.l() {
+                    if !app_obj.is_null() && !contexts.iter().any(|c| c.as_raw() == app_obj.as_raw()) {
+                        contexts.push(app_obj);
+                    }
+                }
+            }
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            }
         }
 
         let Ok(j_text) = env.new_string(text) else { return };

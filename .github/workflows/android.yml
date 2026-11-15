@@ -127,8 +127,8 @@ jobs:
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.11-android
-          name: "Craft Anything Android v0.4.11 (RedGlitchX Edition)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.4.12-android' }}
+          name: "Craft Anything Android ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.4.12-android' }} (RedGlitchX Edition)"
           files: dist/craft-anything-andriod.apk
           draft: false
           prerelease: false

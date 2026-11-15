@@ -220,6 +220,13 @@ pub fn modals(app: &mut CraftApp, ctx: &egui::Context) {
                             app.state.paste_input.clear();
                             app.state.modal = return_to.clone().map(|b| *b);
                         }
+                        if widgets::secondary(ui, Some("clipboard-paste"), "From Clipboard").clicked() {
+                            if let Some(txt) = crate::clipboard::get_text() {
+                                app.state.paste_input = txt;
+                            } else {
+                                app.toast(crate::i18n::tr("Clipboard empty or blocked by Android permissions"), true);
+                            }
+                        }
                         if widgets::secondary(ui, None, "Cancel").clicked() {
                             app.state.paste_input.clear();
                             app.state.modal = return_to.map(|b| *b);

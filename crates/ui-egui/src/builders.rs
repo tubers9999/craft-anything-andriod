@@ -310,6 +310,31 @@ impl CraftApp {
         });
     }
 
+    /// Probe the address in the AI server form and auto-detect models.
+    pub fn detect_server_models(&mut self) {
+        let (hub, address, key) = (self.hub.clone(), self.server_form.address.trim().to_string(), self.server_form.key.trim().to_string());
+        if address.is_empty() {
+            self.toast(tr("Please enter a server address first."), true);
+            return;
+        }
+        self.server_form.detecting_models = true;
+        self.server_form.detect_error = None;
+        let opt_key = if key.is_empty() { None } else { Some(key) };
+        self.jobs.spawn(tr("Detect models"), false, move |_| {
+            let result = hub.list_server_models(&address, opt_key.as_deref());
+            Ok(crate::Done::ServerModelsDetected { result })
+        });
+    }
+
+    /// Change an AI backend's server endpoint / base URL.
+    pub fn set_backend_endpoint(&mut self, name: &str, endpoint: Option<String>) {
+        let (hub, name) = (self.hub.clone(), name.to_string());
+        self.jobs.spawn(tr("Set an AI's endpoint"), false, move |_| {
+            hub.set_base_url(&name, endpoint.as_deref()).map_err(|e| e.message)?;
+            Ok(crate::backends(&hub))
+        });
+    }
+
     /// Run an agent app from this program (`None`: find it by its usual name again).
     pub fn set_agent_program(&mut self, name: &str, program: Option<String>) {
         self.agent_model_picker = None;
